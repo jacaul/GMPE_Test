@@ -20,70 +20,12 @@ export const GlobalRankingModal: React.FC<GlobalRankingModalProps> = ({
   const [selectedClass, setSelectedClass] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [classesList, setClassesList] = useState<string[]>([]);
+  const [classesList, setClassesList] = useState<string[]>([
+    "1º FPGS Energías Renovables (Diurno)",
+    "1º FPGS Energías Renovables (Vespertino)",
+  ]);
 
-  const FALLBACK_SCORES: ScoreEntry[] = [
-    {
-      id: "seed-1",
-      studentName: "Lucía Fernández",
-      studentClass: "4º ESO A",
-      score: 3420,
-      levelReached: 5,
-      totalTime: 185,
-      accuracy: 95,
-      answersCorrect: 24,
-      answersTotal: 25,
-      date: new Date().toISOString(),
-    },
-    {
-      id: "seed-2",
-      studentName: "Alejandro Gómez",
-      studentClass: "1º Bachillerato B",
-      score: 3190,
-      levelReached: 5,
-      totalTime: 210,
-      accuracy: 92,
-      answersCorrect: 23,
-      answersTotal: 25,
-      date: new Date().toISOString(),
-    },
-    {
-      id: "seed-3",
-      studentName: "Marta Sánchez",
-      studentClass: "4º ESO B",
-      score: 2950,
-      levelReached: 4,
-      totalTime: 240,
-      accuracy: 88,
-      answersCorrect: 22,
-      answersTotal: 25,
-      date: new Date().toISOString(),
-    },
-    {
-      id: "seed-4",
-      studentName: "Carlos Navarro",
-      studentClass: "3º ESO A",
-      score: 2780,
-      levelReached: 4,
-      totalTime: 195,
-      accuracy: 85,
-      answersCorrect: 21,
-      answersTotal: 25,
-      date: new Date().toISOString(),
-    },
-    {
-      id: "seed-5",
-      studentName: "Elena Ruiz",
-      studentClass: "1º Bachillerato A",
-      score: 2640,
-      levelReached: 3,
-      totalTime: 220,
-      accuracy: 84,
-      answersCorrect: 20,
-      answersTotal: 25,
-      date: new Date().toISOString(),
-    },
-  ];
+  const FALLBACK_SCORES: ScoreEntry[] = [];
 
   const fetchRankings = async () => {
     setIsLoading(true);

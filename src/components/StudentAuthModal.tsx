@@ -10,16 +10,8 @@ interface StudentAuthModalProps {
 }
 
 const PRESET_CLASSES = [
-  "FP Energías Renovables",
-  "FP Electricidad y Electrónica",
-  "1º Bachillerato Tecnología",
-  "1º Bachillerato Ciencias",
-  "2º Bachillerato",
-  "4º ESO Tecnología",
-  "4º ESO A",
-  "4º ESO B",
-  "3º ESO",
-  "Otra clase / grupo...",
+  "1º FPGS Energías Renovables (Diurno)",
+  "1º FPGS Energías Renovables (Vespertino)",
 ];
 
 export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
@@ -29,9 +21,10 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
 }) => {
   const [name, setName] = useState<string>(initialProfile?.name || "");
   const [selectedClass, setSelectedClass] = useState<string>(
-    initialProfile?.studentClass || "FP Energías Renovables"
+    initialProfile?.studentClass && PRESET_CLASSES.includes(initialProfile.studentClass)
+      ? initialProfile.studentClass
+      : "1º FPGS Energías Renovables (Diurno)"
   );
-  const [customClass, setCustomClass] = useState<string>("");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   if (!isOpen) return null;
@@ -39,7 +32,7 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const finalName = name.trim();
-    const finalClass = selectedClass === "Otra clase..." ? customClass.trim() : selectedClass;
+    const finalClass = selectedClass;
 
     if (!finalName) {
       setErrorMsg("Por favor, introduce tu nombre y apellidos.");
@@ -47,7 +40,7 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
     }
 
     if (!finalClass) {
-      setErrorMsg("Por favor, selecciona o introduce tu clase/grupo.");
+      setErrorMsg("Por favor, selecciona tu grupo.");
       return;
     }
 
@@ -121,24 +114,6 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
                 </option>
               ))}
             </select>
-
-            {selectedClass === "Otra clase..." && (
-              <input
-                type="text"
-                placeholder="Escribe aquí tu clase o grupo..."
-                value={customClass}
-                onChange={(e) => setCustomClass(e.target.value)}
-                className="w-full mt-1.5 px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
-              />
-            )}
-          </div>
-
-          <div className="flex items-start gap-2 text-[11px] text-slate-300 bg-slate-950/70 p-2.5 rounded-xl border border-emerald-500/20">
-            <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-            <div>
-              <p className="font-semibold text-emerald-300">Guardado y Ranking Oficial:</p>
-              <p className="text-slate-400 text-[10.5px]">Tus puntuaciones y progreso se almacenan en el archivo central del servidor (<code className="text-cyan-300 bg-slate-800 px-1 rounded">/data/ranking.json</code>) y en la memoria local de este navegador.</p>
-            </div>
           </div>
 
           {/* Submit Button */}

@@ -44,6 +44,12 @@ export interface QuizQuestion {
   points: number;
   hint?: string;
   formula?: string;
+  formulaExplanation?: string;
+  simulatorPreset?: {
+    windSpeed?: number;
+    bladeRadius?: number;
+    inductionFactor?: number;
+  };
 }
 
 export interface ScoreEntry {

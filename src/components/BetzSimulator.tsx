@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import confetti from "canvas-confetti";
 import {
   Wind,
   Activity,
@@ -14,14 +15,20 @@ import {
   Home,
   RotateCcw,
   Sparkles,
+  Sliders,
+  CheckCircle2,
 } from "lucide-react";
 import { sounds } from "../utils/audio";
 
 interface BetzSimulatorProps {
   onContinueToQuiz?: () => void;
+  onBetzChallengesCompleted?: (isCompleted: boolean, solvedCount: number) => void;
 }
 
-export const BetzSimulator: React.FC<BetzSimulatorProps> = ({ onContinueToQuiz }) => {
+export const BetzSimulator: React.FC<BetzSimulatorProps> = ({
+  onContinueToQuiz,
+  onBetzChallengesCompleted,
+}) => {
   // Active simulator sub-tab
   const [activeMode, setActiveMode] = useState<"teoria" | "rendimientos" | "dimensionamiento">("teoria");
 
@@ -40,6 +47,17 @@ export const BetzSimulator: React.FC<BetzSimulatorProps> = ({ onContinueToQuiz }
   const [selectedChallengeIdx, setSelectedChallengeIdx] = useState<number>(0);
   const [userChallengeAnswer, setUserChallengeAnswer] = useState<number | null>(null);
   const [challengeFeedback, setChallengeFeedback] = useState<string | null>(null);
+  const [presetLoadedNotice, setPresetLoadedNotice] = useState<string | null>(null);
+
+  // Solved challenges persistence
+  const [solvedChallenges, setSolvedChallenges] = useState<number[]>(() => {
+    try {
+      const saved = localStorage.getItem("turbine_betz_challenges_completed");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
 
   // Fundamental Calculations
   const diameter = bladeRadius * 2;
@@ -98,11 +116,18 @@ export const BetzSimulator: React.FC<BetzSimulatorProps> = ({ onContinueToQuiz }
   // CO2 avoided (approx 0.25 tonnes CO2 per MWh in Spanish grid mix)
   const co2AvoidedTonnes = Math.round(annualMWh * 0.25);
 
-  // Challenges bank
+  // Challenges bank with formulas and simulator integration
   const CHALLENGES = [
     {
-      title: "Límite Máximo Teórico de Betz (1919)",
-      question: "¿Cuál es la fracción exacta que demostró Albert Betz como límite físico insuperable para cualquier turbina eólica?",
+      title: "Límite Máximo Teórico de Albert Betz (1919)",
+      formula: "Cp(a) = 4 · a · (1 - a)²",
+      formulaNote: "Derivada igualada a cero: dCp/da = 4(1 - 3a)(1 - a) = 0  ⇒  a = 1/3 (0.333)",
+      variables: [
+        { sym: "a", desc: "Factor de inducción axial (frenado del flujo)", val: "1/3 ≈ 0.333" },
+        { sym: "Cp", desc: "Coeficiente de potencia extraída", val: "16/27 ≈ 59.26%" },
+      ],
+      preset: { windSpeed: 10, bladeRadius: 55, inductionFactor: 0.333 },
+      question: "Aplicando la fórmula del coeficiente de potencia Cp = 4·a·(1-a)² con inducción axial óptima a = ⅓, ¿cuál es la fracción matemática exacta y el porcentaje límite insuperable demostrado por Albert Betz?",
       options: [
         "16/27 (≈ 59.26%)",
         "1/2 (50.00%)",
@@ -110,12 +135,21 @@ export const BetzSimulator: React.FC<BetzSimulatorProps> = ({ onContinueToQuiz }
         "2/3 (66.67%)",
       ],
       correct: 0,
+      calculation: "Sustituyendo a = 1/3: Cp = 4 · (1/3) · (1 - 1/3)² = 4/3 · (2/3)² = 4/3 · 4/9 = 16/27 ≈ 0.59259 (59.26%).",
       explanation:
-        "Demostrado matemáticamente mediante la conservación de momento y masa: la derivada dCp/da = 4(1-a)(1-3a) se anula exactamente en a = 1/3, dando Cp = 4(1/3)(2/3)² = 16/27 ≈ 59.26%.",
+        "Demostrado matemáticamente mediante conservación de masa y momento lineal: ninguna turbina en flujo abierto puede extraer más de 16/27 (59.26%) de la energía del viento.",
     },
     {
-      title: "Ley Cúbica de la Velocidad del Viento (v³)",
-      question: "Si el viento arrecia y pasa de 5 m/s a 10 m/s (se duplica la velocidad), ¿por cuánto se multiplica la potencia del viento?",
+      title: "Ley Cúbica de la Potencia del Viento (v³)",
+      formula: "P = ½ · ρ · A · v³",
+      formulaNote: "La potencia del viento depende directamente del cubo de su velocidad (v · v · v)",
+      variables: [
+        { sym: "ρ", desc: "Densidad del aire (IEC a nivel del mar)", val: "1.225 kg/m³" },
+        { sym: "A", desc: "Área de barrido del rotor (π · R²)", val: "π · 55² ≈ 9,503 m²" },
+        { sym: "v", desc: "Velocidad del viento incidente", val: "m/s" },
+      ],
+      preset: { windSpeed: 12, bladeRadius: 55, inductionFactor: 0.333 },
+      question: "Con la fórmula P = ½·ρ·A·v³ en pantalla, si el viento arrecia pasando de v₁ = 6 m/s a v₂ = 12 m/s (se duplica la velocidad), ¿por qué factor se multiplica la potencia total disponible en el flujo?",
       options: [
         "Se duplica (x2)",
         "Se cuadruplica (x4)",
@@ -123,43 +157,114 @@ export const BetzSimulator: React.FC<BetzSimulatorProps> = ({ onContinueToQuiz }
         "Se multiplica por 10 (x10)",
       ],
       correct: 2,
+      calculation: "Relación de potencias: P₂ / P₁ = (v₂ / v₁)³ = (12 / 6)³ = 2³ = 8. ¡Al duplicar el viento la energía disponible se multiplica por ocho!",
       explanation:
-        "La energía cinética es ½·m·v² y el flujo de masa es m_dot = ρ·A·v. Al combinarlas, P = ½·ρ·A·v³. Como la velocidad está al cubo: 2³ = 8. ¡Un pequeño aumento de viento genera una enorme cantidad de energía!",
+        "La energía cinética es ½·m·v² y el flujo másico es m_dot = ρ·A·v. Al multiplicar masa por energía, la potencia resulta proporcional al cubo: 2³ = 8.",
     },
     {
-      title: "Velocidad del Viento Aguas Abajo (v₂)",
-      question: "Si el viento incidente es de 12 m/s y el rotor opera en el óptimo de Betz (a = ⅓), ¿a qué velocidad sale el viento tras cruzar el rotor?",
+      title: "Velocidad del Viento Aguas Abajo en la Estela (v₂)",
+      formula: "v₂ = v₁ · (1 - 2a)",
+      formulaNote: "Velocidad remanente en la estela lejana tras extraer la máxima energía",
+      variables: [
+        { sym: "v₁", desc: "Velocidad del viento aguas arriba", val: "12 m/s" },
+        { sym: "a", desc: "Factor de inducción axial óptimo", val: "1/3 (0.333)" },
+        { sym: "v₂", desc: "Velocidad estela lejana aguas abajo", val: "v₁ · (1/3) = 4 m/s" },
+      ],
+      preset: { windSpeed: 12, bladeRadius: 55, inductionFactor: 0.333 },
+      question: "Si el viento incidente es v₁ = 12 m/s y el rotor opera en el óptimo de Betz (a = ⅓), aplica la fórmula v₂ = v₁(1 - 2a) para calcular a qué velocidad sale el viento detrás del rotor:",
       options: [
-        "4 m/s (un tercio de la inicial)",
+        "4 m/s (un tercio de la velocidad inicial)",
         "6 m/s (la mitad)",
         "0 m/s (se detiene totalmente)",
         "8 m/s",
       ],
       correct: 0,
+      calculation: "Cálculo directo: v₂ = 12 · [1 - 2·(1/3)] = 12 · (1 - 2/3) = 12 · (1/3) = 4 m/s. El aire conserva un tercio de su velocidad para evacuar la masa de aire sin bloquear el paso.",
       explanation:
-        "La ecuación es v₂ = v₁(1 - 2a). Si a = 1/3, v₂ = 12 · (1 - 2/3) = 12 · (1/3) = 4 m/s. Si se detuviera a 0 m/s, el aire actuaría como una pared sólida y ningún viento nuevo podría atravesar el rotor.",
+        "La ecuación de conservación exige v₂ = v₁(1 - 2a). Con a = 1/3, v₂ = 12/3 = 4 m/s. Si se detuviera a 0 m/s, el aire actuaría como una pared sólida y bloquearía la entrada de nuevo flujo.",
     },
     {
-      title: "Área de Barrido y Longitud de Pala",
-      question: "Si un fabricante alarga la pala de 40 m a 80 m (duplica el radio R), ¿qué ocurre con el área de barrido y la potencia captada?",
+      title: "Área de Barrido y Radio de Pala (R²)",
+      formula: "A = π · R²   ⇒   P = ½ · ρ · (π · R²) · v³",
+      formulaNote: "El área circular y la potencia crecen con el cuadrado de la longitud de pala",
+      variables: [
+        { sym: "R", desc: "Longitud de pala / radio del rotor", val: "De 40 m a 80 m" },
+        { sym: "A", desc: "Área de barrido", val: "A₁ ≈ 5,027 m²  →  A₂ ≈ 20,106 m²" },
+      ],
+      preset: { windSpeed: 10, bladeRadius: 80, inductionFactor: 0.333 },
+      question: "Si en un parque eólico se sustituyen turbinas con palas de R₁ = 40 m por nuevos aerogeneradores de R₂ = 80 m (se duplica la longitud), ¿qué ocurre con el área de barrido y la potencia captada?",
       options: [
         "Se duplican (x2)",
-        "Se cuadruplican (x4, porque A = π·R²)",
+        "Se cuadruplican (x4, porque el área depende de R²)",
         "Aumentan un 50%",
         "Se multiplican por 8",
       ],
       correct: 1,
+      calculation: "Relación de áreas: A₂ / A₁ = (π · R₂²) / (π · R₁²) = (80 / 40)² = 2² = 4. ¡El área barrida y la potencia eólica se cuadruplican!",
       explanation:
-        "El área barrida por las palas es circular: A = π · R². Al duplicar el radio R, el área crece con el cuadrado: 2² = 4 veces más energía.",
+        "El área barrida por las palas es circular: A = π · R². Al duplicar el radio R, el área crece cuadráticamente: 2² = 4 veces más energía.",
+    },
+    {
+      title: "Cadena de Rendimientos Comerciales a Red (η_global)",
+      formula: "η_global = Cp,real · η_mec · η_gen · η_trafo",
+      formulaNote: "Eficiencia neta comercial desde el viento libre hasta la inyección a red eléctrica",
+      variables: [
+        { sym: "Cp,real", desc: "Rendimiento aerodinámico real", val: "0.480 (48.0%)" },
+        { sym: "η_mec", desc: "Rendimiento mecánico multiplicadora", val: "0.972 (97.2%)" },
+        { sym: "η_gen", desc: "Rendimiento eléctrico generador", val: "0.965 (96.5%)" },
+        { sym: "η_trafo", desc: "Rendimiento transformador elevador", val: "0.982 (98.2%)" },
+      ],
+      preset: { windSpeed: 11, bladeRadius: 60, inductionFactor: 0.333 },
+      question: "Utilizando la fórmula de la cadena de pérdidas en serie, si Cp = 0.48, η_mec = 0.972, η_gen = 0.965 y η_trafo = 0.982, ¿cuál es el rendimiento global neto vertido a la red?",
+      options: [
+        "≈ 44.2% de la energía del viento incidente",
+        "≈ 59.3% (Límite de Betz)",
+        "≈ 25.0%",
+        "≈ 85.0%",
+      ],
+      correct: 0,
+      calculation: "Cálculo: η_global = 0.48 · 0.972 · 0.965 · 0.982 ≈ 0.4421 = 44.2%. De la energía cinética total del viento que choca con el disco rotor, se inyecta a la red aproximadamente el 44.2%.",
+      explanation:
+        "Una turbina comercial de primer nivel convierte un 44-45% de la energía eólica total en electricidad útil vertida a la red eléctrica.",
     },
   ];
+
+  const handleLoadPresetToSimulator = (preset: { windSpeed?: number; bladeRadius?: number; inductionFactor?: number; airDensity?: number }) => {
+    sounds.playClick();
+    if (preset.windSpeed !== undefined) setWindSpeed(preset.windSpeed);
+    if (preset.bladeRadius !== undefined) setBladeRadius(preset.bladeRadius);
+    if (preset.inductionFactor !== undefined) setInductionFactor(preset.inductionFactor);
+    if (preset.airDensity !== undefined) setAirDensity(preset.airDensity);
+    setPresetLoadedNotice("¡Parámetros cargados en el simulador! Observa la animación del flujo y los cálculos de potencia arriba.");
+    setTimeout(() => setPresetLoadedNotice(null), 4500);
+  };
 
   const handleSelectChallengeAnswer = (ansIdx: number) => {
     setUserChallengeAnswer(ansIdx);
     const challenge = CHALLENGES[selectedChallengeIdx];
     if (ansIdx === challenge.correct) {
       sounds.playCorrect();
-      setChallengeFeedback(`¡Correcto! ${challenge.explanation}`);
+      setChallengeFeedback(`¡Correcto! ${challenge.calculation}`);
+
+      const nextSolved = Array.from(new Set([...solvedChallenges, selectedChallengeIdx]));
+      setSolvedChallenges(nextSolved);
+      localStorage.setItem("turbine_betz_challenges_completed", JSON.stringify(nextSolved));
+
+      if (nextSolved.length === CHALLENGES.length) {
+        sounds.playFanfare();
+        try {
+          confetti({
+            particleCount: 120,
+            spread: 80,
+            origin: { y: 0.6 },
+          });
+        } catch {
+          // ignore
+        }
+        if (onBetzChallengesCompleted) onBetzChallengesCompleted(true, nextSolved.length);
+      } else {
+        if (onBetzChallengesCompleted) onBetzChallengesCompleted(false, nextSolved.length);
+      }
     } else {
       sounds.playWrong();
       setChallengeFeedback(`Incorrecto. ${challenge.explanation}`);
@@ -749,44 +854,108 @@ export const BetzSimulator: React.FC<BetzSimulatorProps> = ({ onContinueToQuiz }
             </div>
           )}
 
-          {/* CONCEPT RETOS DE FÍSICA DE BETZ (CON SELECTOR DE 4 RETOS) */}
-          <div className="bg-slate-950/80 border border-slate-800 p-4 rounded-xl flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-sky-400 flex items-center gap-1.5 uppercase tracking-wider">
-                <HelpCircle className="w-4 h-4" />
-                Retos Conceptuales de Betz (4 Desafíos)
-              </span>
-              <div className="flex items-center gap-1">
-                {CHALLENGES.map((_, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => {
-                      sounds.playClick();
-                      setSelectedChallengeIdx(idx);
-                      setUserChallengeAnswer(null);
-                      setChallengeFeedback(null);
-                    }}
-                    className={`w-6 h-6 rounded-lg text-xs font-bold transition-all ${
-                      selectedChallengeIdx === idx
-                        ? "bg-sky-500 text-slate-950"
-                        : "bg-slate-800 text-slate-400 hover:bg-slate-700"
-                    }`}
-                  >
-                    {idx + 1}
-                  </button>
-                ))}
+          {/* CONCEPT RETOS DE FÍSICA DE BETZ CON FÓRMULAS EN PANTALLA Y ENLACE AL SIMULADOR */}
+          <div className="bg-slate-950/90 border border-slate-800 p-4 sm:p-5 rounded-xl flex flex-col gap-4 shadow-xl">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
+              <div>
+                <span className="text-xs font-bold text-sky-400 flex items-center gap-1.5 uppercase tracking-wider">
+                  <Calculator className="w-4 h-4" />
+                  Retos Conceptuales de Betz & Cálculos en el Simulador
+                </span>
+                <span className="text-[11px] text-slate-400">
+                  {solvedChallenges.length} de {CHALLENGES.length} retos superados
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                {CHALLENGES.map((_, idx) => {
+                  const isSolved = solvedChallenges.includes(idx);
+                  const isCurrent = selectedChallengeIdx === idx;
+
+                  return (
+                    <button
+                      key={idx}
+                      onClick={() => {
+                        sounds.playClick();
+                        setSelectedChallengeIdx(idx);
+                        setUserChallengeAnswer(null);
+                        setChallengeFeedback(null);
+                      }}
+                      className={`relative px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
+                        isCurrent
+                          ? "bg-sky-500 text-slate-950 shadow-md font-extrabold"
+                          : isSolved
+                          ? "bg-emerald-950/60 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-900/50"
+                          : "bg-slate-800 text-slate-400 hover:bg-slate-700"
+                      }`}
+                    >
+                      <span>Reto {idx + 1}</span>
+                      {isSolved && <CheckCircle2 className="w-3 h-3 text-emerald-400" />}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
-            <div>
-              <h5 className="font-bold text-sm text-white mb-1">
-                #{selectedChallengeIdx + 1}. {CHALLENGES[selectedChallengeIdx].title}
+            {/* PRESET LOAD NOTIFICATION */}
+            {presetLoadedNotice && (
+              <div className="bg-cyan-950/70 border border-cyan-500/40 text-cyan-200 text-xs px-3 py-2 rounded-xl flex items-center gap-2 animate-in fade-in">
+                <Sparkles className="w-4 h-4 text-cyan-400 shrink-0" />
+                <span>{presetLoadedNotice}</span>
+              </div>
+            )}
+
+            {/* CHALLENGE HEADER & FORMULA BANNER */}
+            <div className="flex flex-col gap-2">
+              <h5 className="font-bold text-sm sm:text-base text-white flex items-center gap-2">
+                <span className="text-sky-400 font-mono">#{selectedChallengeIdx + 1}</span>
+                <span>{CHALLENGES[selectedChallengeIdx].title}</span>
               </h5>
-              <p className="text-xs text-slate-300">
+
+              {/* FÓRMULA MATEMÁTICA EN PANTALLA */}
+              <div className="bg-gradient-to-r from-slate-900 via-sky-950/40 to-slate-900 border border-sky-500/30 p-3 sm:p-4 rounded-xl flex flex-col gap-2">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <span className="text-[11px] uppercase tracking-wider text-sky-300 font-semibold flex items-center gap-1">
+                    <Activity className="w-3.5 h-3.5" />
+                    Fórmula Física Aplicable:
+                  </span>
+                  <button
+                    onClick={() => handleLoadPresetToSimulator(CHALLENGES[selectedChallengeIdx].preset)}
+                    className="flex items-center gap-1.5 px-2.5 py-1 bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-400/30 rounded-lg text-[11px] font-bold transition-all shadow-sm"
+                  >
+                    <Sliders className="w-3.5 h-3.5" />
+                    <span>Cargar parámetros en el Simulador</span>
+                  </button>
+                </div>
+
+                <div className="py-2 px-3 bg-slate-950/80 rounded-lg border border-slate-800 text-center">
+                  <span className="text-base sm:text-lg font-mono font-black text-cyan-300 tracking-wider">
+                    {CHALLENGES[selectedChallengeIdx].formula}
+                  </span>
+                </div>
+
+                <p className="text-[11px] text-slate-400 font-mono italic">
+                  {CHALLENGES[selectedChallengeIdx].formulaNote}
+                </p>
+
+                {/* Variables legend */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 pt-1 border-t border-slate-800/60">
+                  {CHALLENGES[selectedChallengeIdx].variables.map((v, vIdx) => (
+                    <div key={vIdx} className="bg-slate-950/60 px-2 py-1 rounded text-[10px] text-slate-300 flex items-center justify-between">
+                      <span className="font-mono text-cyan-400 font-bold">{v.sym}:</span>
+                      <span className="text-slate-400 truncate ml-1">{v.desc}</span>
+                      <span className="font-mono text-emerald-400 ml-1 shrink-0 font-semibold">{v.val}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* QUESTION TEXT */}
+              <p className="text-xs sm:text-sm text-slate-200 mt-1 font-medium leading-relaxed">
                 {CHALLENGES[selectedChallengeIdx].question}
               </p>
             </div>
 
+            {/* OPTIONS */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {CHALLENGES[selectedChallengeIdx].options.map((opt, optIdx) => {
                 const isChosen = userChallengeAnswer === optIdx;
@@ -796,11 +965,11 @@ export const BetzSimulator: React.FC<BetzSimulatorProps> = ({ onContinueToQuiz }
                   <button
                     key={optIdx}
                     onClick={() => handleSelectChallengeAnswer(optIdx)}
-                    className={`text-left text-xs p-2.5 rounded-xl border transition-all ${
+                    className={`text-left text-xs p-3 rounded-xl border transition-all ${
                       userChallengeAnswer === null
                         ? "bg-slate-900 hover:bg-slate-800 text-slate-200 border-slate-700"
                         : isCorrect
-                        ? "bg-emerald-950/70 border-emerald-400 text-emerald-200 font-bold"
+                        ? "bg-emerald-950/70 border-emerald-400 text-emerald-200 font-bold shadow-md"
                         : isChosen
                         ? "bg-rose-950/70 border-rose-400 text-rose-200"
                         : "bg-slate-900 text-slate-400 border-slate-800 opacity-60"
@@ -812,15 +981,29 @@ export const BetzSimulator: React.FC<BetzSimulatorProps> = ({ onContinueToQuiz }
               })}
             </div>
 
+            {/* FEEDBACK & DETAILED CALCULATION WALKTHROUGH */}
             {challengeFeedback && (
               <div
-                className={`text-xs p-3 rounded-xl border animate-in fade-in ${
+                className={`text-xs p-3.5 rounded-xl border animate-in fade-in flex flex-col gap-1.5 ${
                   userChallengeAnswer === CHALLENGES[selectedChallengeIdx].correct
-                    ? "bg-emerald-950/60 border-emerald-500/50 text-emerald-300"
-                    : "bg-rose-950/60 border-rose-500/50 text-rose-300"
+                    ? "bg-emerald-950/60 border-emerald-500/50 text-emerald-200"
+                    : "bg-rose-950/60 border-rose-500/50 text-rose-200"
                 }`}
               >
-                {challengeFeedback}
+                <div className="flex items-center gap-1.5 font-bold">
+                  {userChallengeAnswer === CHALLENGES[selectedChallengeIdx].correct ? (
+                    <>
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                      <span>¡Respuesta Correcta! Cálculo Verificado</span>
+                    </>
+                  ) : (
+                    <>
+                      <HelpCircle className="w-4 h-4 text-rose-400" />
+                      <span>Revisa el procedimiento con la fórmula:</span>
+                    </>
+                  )}
+                </div>
+                <p className="text-[11px] opacity-90 leading-relaxed font-sans">{challengeFeedback}</p>
               </div>
             )}
           </div>

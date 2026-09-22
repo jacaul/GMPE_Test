@@ -23,6 +23,7 @@ interface InteractiveDiagramProps {
   selectedPart?: TurbinePart | null;
   onSelectPart?: (part: TurbinePart) => void;
   onContinueToQuiz?: () => void;
+  onDiagramCompleted?: (completed: boolean) => void;
 }
 
 const SECONDS_PER_PART = 20;
@@ -32,9 +33,17 @@ export const InteractiveDiagram: React.FC<InteractiveDiagramProps> = ({
   selectedPart,
   onSelectPart,
   onContinueToQuiz,
+  onDiagramCompleted,
 }) => {
   // Map of part ID -> user matched part ID
-  const [matchedMap, setMatchedMap] = useState<Record<number, number>>({});
+  const [matchedMap, setMatchedMap] = useState<Record<number, number>>(() => {
+    try {
+      const saved = localStorage.getItem("turbine_diagram_matched");
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
   const [activeTargetId, setActiveTargetId] = useState<number | null>(1);
   const [wrongShakeId, setWrongShakeId] = useState<number | null>(null);
   const [showTechnicalList, setShowTechnicalList] = useState<boolean>(true);
@@ -131,6 +140,7 @@ export const InteractiveDiagram: React.FC<InteractiveDiagramProps> = ({
       const speedBonus = Math.round((timeLeft / SECONDS_PER_PART) * 50);
       const newMap = { ...matchedMap, [activeTargetId]: chosenPart.id };
       setMatchedMap(newMap);
+      localStorage.setItem("turbine_diagram_matched", JSON.stringify(newMap));
 
       if (onPartMatched) {
         onPartMatched(chosenPart, true, 100 + speedBonus);
@@ -139,6 +149,7 @@ export const InteractiveDiagram: React.FC<InteractiveDiagramProps> = ({
       // Check if finished
       if (Object.keys(newMap).length === TURBINE_PARTS.length) {
         sounds.playFanfare();
+        if (onDiagramCompleted) onDiagramCompleted(true);
         try {
           confetti({
             particleCount: 120,
@@ -173,6 +184,8 @@ export const InteractiveDiagram: React.FC<InteractiveDiagramProps> = ({
   const handleReset = () => {
     sounds.playClick();
     setMatchedMap({});
+    localStorage.removeItem("turbine_diagram_matched");
+    if (onDiagramCompleted) onDiagramCompleted(false);
     setActiveTargetId(1);
     setTimeLeft(SECONDS_PER_PART);
     const firstPart = TURBINE_PARTS.find((p) => p.id === 1);
@@ -438,16 +451,33 @@ export const InteractiveDiagram: React.FC<InteractiveDiagramProps> = ({
               />
               <line x1="495" y1="347" x2="870" y2="347" stroke="#64748b" strokeWidth="1.5" strokeDasharray="10,4" />
 
-              {/* 4. NACELLE CANOPY SHELL (Pieza 19: Dosel / cubierta) */}
-              <path
-                d="M 460 220 C 460 160, 560 140, 840 145 C 910 147, 935 200, 935 280 C 935 340, 895 355, 875 355 L 480 355 Z"
-                fill="none"
-                stroke="#94a3b8"
-                strokeWidth="3.5"
-                strokeDasharray="8,5"
-              />
-              {/* Canopy tail aerodynamic fin */}
-              <polygon points="840,145 925,65 935,115 925,148" fill="#e2e8f0" stroke="#64748b" strokeWidth="2" />
+              {/* 4. NACELLE CANOPY SHELL (Pieza 19: Dosel / cubierta de la góndola) */}
+              <g id="nacelle-canopy-group">
+                <path
+                  d="M 460 220 C 460 155, 550 142, 840 145 C 910 147, 935 200, 935 280 C 935 340, 895 355, 875 355 L 480 355 Z"
+                  fill="#0284c7"
+                  fillOpacity="0.08"
+                  stroke="#38bdf8"
+                  strokeWidth="3"
+                />
+                {/* Internal aerodynamic stiffeners */}
+                <path
+                  d="M 470 225 C 470 165, 555 152, 835 155 C 900 157, 925 205, 925 278 C 925 332, 890 345, 870 345 L 490 345"
+                  fill="none"
+                  stroke="#0ea5e9"
+                  strokeWidth="1.2"
+                  strokeDasharray="6,4"
+                  opacity="0.6"
+                />
+                {/* Roof maintenance access hatches (Pieza 19) */}
+                <rect x="610" y="141" width="70" height="6" rx="2" fill="#38bdf8" stroke="#0284c7" strokeWidth="1.5" />
+                <rect x="760" y="143" width="75" height="6" rx="2" fill="#38bdf8" stroke="#0284c7" strokeWidth="1.5" />
+                <text x="735" y="136" fill="#38bdf8" fontSize="9" fontWeight="bold" letterSpacing="1">
+                  DOSEL (CANOPY)
+                </text>
+                {/* Canopy tail aerodynamic fin */}
+                <polygon points="840,145 925,65 935,115 925,148" fill="#1e293b" stroke="#38bdf8" strokeWidth="2" />
+              </g>
 
               {/* 5. METEOROLOGICAL SENSORS (Pieza 13: Sensores meteorológicos) */}
               <line x1="925" y1="65" x2="930" y2="28" stroke="#f8fafc" strokeWidth="3" />
@@ -463,9 +493,18 @@ export const InteractiveDiagram: React.FC<InteractiveDiagramProps> = ({
                 stroke="#64748b"
                 strokeWidth="3.5"
               />
-              {/* Spinner support ring (Pieza 2: Soporte del cono) */}
-              <ellipse cx="330" cy="255" rx="35" ry="95" fill="#64748b" stroke="#334155" strokeWidth="2.5" />
-              <ellipse cx="330" cy="255" rx="25" ry="75" fill="#0f172a" />
+              {/* SPINNER SUPPORT BRACKET & RING (Pieza 2: Soporte del cono) */}
+              <g id="spinner-support-bracket">
+                <ellipse cx="315" cy="255" rx="38" ry="96" fill="#1e293b" stroke="#38bdf8" strokeWidth="2.5" />
+                <ellipse cx="315" cy="255" rx="26" ry="76" fill="#0f172a" stroke="#64748b" strokeWidth="1.5" />
+                {/* Radial support ribs & bolts */}
+                <line x1="315" y1="162" x2="315" y2="348" stroke="#38bdf8" strokeWidth="2" strokeDasharray="4,2" />
+                <line x1="280" y1="255" x2="350" y2="255" stroke="#38bdf8" strokeWidth="2" strokeDasharray="4,2" />
+                <circle cx="315" cy="180" r="3.5" fill="#f8fafc" stroke="#0284c7" />
+                <circle cx="315" cy="215" r="4.5" fill="#38bdf8" stroke="#0284c7" />
+                <circle cx="315" cy="295" r="4.5" fill="#38bdf8" stroke="#0284c7" />
+                <circle cx="315" cy="330" r="3.5" fill="#f8fafc" stroke="#0284c7" />
+              </g>
 
               {/* BLADES (Pieza 3: Pala) */}
               {/* Top Blade */}
@@ -508,17 +547,26 @@ export const InteractiveDiagram: React.FC<InteractiveDiagramProps> = ({
               </text>
 
               {/* 10. OIL FILTER (Pieza 18: Filtro de aceite) */}
-              <rect x="718" y="265" width="22" height="45" rx="4" fill="#eab308" stroke="#ca8a04" strokeWidth="2" />
-              <line x1="720" y1="280" x2="740" y2="280" stroke="#713f12" strokeWidth="1.5" />
+              <rect x="710" y="275" width="22" height="48" rx="4" fill="#eab308" stroke="#ca8a04" strokeWidth="2" />
+              <line x1="712" y1="290" x2="730" y2="290" stroke="#713f12" strokeWidth="1.5" />
 
-              {/* 11. DISC BRAKE & CALIPER (Pieza 9: Disco del freno) */}
-              <rect x="655" y="220" width="14" height="70" rx="2" fill="url(#brakeGrad)" stroke="#f59e0b" strokeWidth="2" />
-              {/* Ventilation holes on disc */}
-              <circle cx="662" cy="235" r="2" fill="#451a03" />
-              <circle cx="662" cy="255" r="2" fill="#451a03" />
-              <circle cx="662" cy="275" r="2" fill="#451a03" />
-              {/* Hydraulic Caliper */}
-              <rect x="648" y="214" width="26" height="24" rx="4" fill="#ef4444" stroke="#991b1b" strokeWidth="2" />
+              {/* 11. DISC BRAKE & HYDRAULIC CALIPER (Pieza 9: Disco del freno) */}
+              <g id="brake-system">
+                {/* Ventilated high-speed brake disc */}
+                <rect x="652" y="200" width="16" height="110" rx="3" fill="url(#brakeGrad)" stroke="#f59e0b" strokeWidth="2.5" />
+                {/* Radial cooling air slots */}
+                <line x1="655" y1="220" x2="665" y2="220" stroke="#78350f" strokeWidth="2" />
+                <line x1="655" y1="235" x2="665" y2="235" stroke="#78350f" strokeWidth="2" />
+                <line x1="655" y1="250" x2="665" y2="250" stroke="#78350f" strokeWidth="2" />
+                <line x1="655" y1="265" x2="665" y2="265" stroke="#78350f" strokeWidth="2" />
+                <line x1="655" y1="280" x2="665" y2="280" stroke="#78350f" strokeWidth="2" />
+                <line x1="655" y1="295" x2="665" y2="295" stroke="#78350f" strokeWidth="2" />
+                {/* Dual-Piston Hydraulic Brake Caliper */}
+                <rect x="642" y="194" width="36" height="32" rx="4" fill="#dc2626" stroke="#991b1b" strokeWidth="2" />
+                <circle cx="650" cy="210" r="3" fill="#fef2f2" />
+                <circle cx="670" cy="210" r="3" fill="#fef2f2" />
+                <line x1="660" y1="194" x2="660" y2="182" stroke="#ef4444" strokeWidth="2" />
+              </g>
 
               {/* 12. HIGH SPEED SHAFT & COUPLING (Pieza 10: Acoplamiento) */}
               <rect x="635" y="250" width="50" height="10" fill="#94a3b8" />
@@ -573,13 +621,32 @@ export const InteractiveDiagram: React.FC<InteractiveDiagramProps> = ({
                       strokeWidth={isActive ? "2.5" : "1.5"}
                       strokeDasharray={isActive ? "none" : "3,2"}
                     />
-                    {/* Target endpoint dot */}
+                    {/* Target endpoint dot & reticle */}
                     <circle
                       cx={tx}
                       cy={ty}
-                      r={isActive ? "5" : "3.5"}
+                      r={isActive ? "6" : "3.5"}
                       fill={isMatched ? "#10b981" : isActive ? "#38bdf8" : "#94a3b8"}
                     />
+
+                    {/* High-visibility Target Reticle for Active Hotspot */}
+                    {isActive && (
+                      <g pointerEvents="none">
+                        <circle
+                          cx={tx}
+                          cy={ty}
+                          r="16"
+                          fill="none"
+                          stroke="#38bdf8"
+                          strokeWidth="2"
+                          className="animate-ping"
+                          opacity="0.8"
+                        />
+                        <circle cx={tx} cy={ty} r="10" fill="none" stroke="#38bdf8" strokeWidth="1.8" />
+                        <line x1={tx - 14} y1={ty} x2={tx + 14} y2={ty} stroke="#38bdf8" strokeWidth="1.5" />
+                        <line x1={tx} y1={ty - 14} x2={tx} y2={ty + 14} stroke="#38bdf8" strokeWidth="1.5" />
+                      </g>
+                    )}
 
                     {/* Hotspot Outer Glow if active */}
                     {isActive && (

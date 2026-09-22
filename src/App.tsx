@@ -3,6 +3,7 @@ import { TurbineCanvas3D } from "./components/TurbineCanvas3D";
 import { InteractiveDiagram } from "./components/InteractiveDiagram";
 import { BetzSimulator } from "./components/BetzSimulator";
 import { GlobalRankingModal } from "./components/GlobalRankingModal";
+import { RankingView } from "./components/RankingView";
 import { StudentAuthModal } from "./components/StudentAuthModal";
 import { StudentCertificate } from "./components/StudentCertificate";
 import { TimerBar } from "./components/TimerBar";
@@ -29,6 +30,7 @@ import {
   XCircle,
   RefreshCw,
   Layers,
+  Calculator,
 } from "lucide-react";
 import confetti from "canvas-confetti";
 
@@ -41,7 +43,7 @@ export default function App() {
   const [isMuted, setIsMuted] = useState<boolean>(sounds.isMuted);
 
   // Tab navigation
-  const [activeTab, setActiveTab] = useState<"quiz" | "diagrama" | "simulador">("quiz");
+  const [activeTab, setActiveTab] = useState<"quiz" | "diagrama" | "simulador" | "ranking">("quiz");
 
   // Selected turbine part (for 3D sync)
   const [selectedPart, setSelectedPart] = useState<TurbinePart | null>(TURBINE_PARTS[0]);
@@ -60,6 +62,43 @@ export default function App() {
   const [totalQuestionsAnswered, setTotalQuestionsAnswered] = useState<number>(0);
   const [gameStartTime] = useState<number>(Date.now());
   const [completedLevels, setCompletedLevels] = useState<number[]>([]);
+
+  // Diagram & Betz Completion Status for strict diploma requirements
+  const [diagramMatchedCount, setDiagramMatchedCount] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem("turbine_diagram_matched");
+      return saved ? Object.keys(JSON.parse(saved)).length : 0;
+    } catch {
+      return 0;
+    }
+  });
+
+  const [isDiagramCompleted, setIsDiagramCompleted] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem("turbine_diagram_matched");
+      return saved ? Object.keys(JSON.parse(saved)).length >= 20 : false;
+    } catch {
+      return false;
+    }
+  });
+
+  const [betzCompletedCount, setBetzCompletedCount] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem("turbine_betz_challenges_completed");
+      return saved ? JSON.parse(saved).length : 0;
+    } catch {
+      return 0;
+    }
+  });
+
+  const [isBetzCompleted, setIsBetzCompleted] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem("turbine_betz_challenges_completed");
+      return saved ? JSON.parse(saved).length >= 5 : false;
+    } catch {
+      return false;
+    }
+  });
 
   // Load profile from localStorage on start
   useEffect(() => {
@@ -298,6 +337,11 @@ export default function App() {
   const accuracyPercent =
     totalQuestionsAnswered > 0 ? Math.round((correctAnswersCount / totalQuestionsAnswered) * 100) : 100;
 
+  const isQuizCompleted =
+    completedLevels.includes(5) ||
+    (currentLevel === 5 && currentQuestionIndex >= levelQuestions.length - 1 && isAnswerSubmitted);
+  const isDiplomaGranted = isQuizCompleted && isDiagramCompleted && isBetzCompleted && accuracyPercent > 75;
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-emerald-500 selection:text-white font-sans">
       {/* TOP NAVIGATION BAR */}
@@ -361,9 +405,21 @@ export default function App() {
             <Sliders className="w-3.5 h-3.5" />
             <span>Simulador Betz</span>
           </button>
+          <button
+            onClick={() => {
+              sounds.playClick();
+              setActiveTab("ranking");
+            }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              activeTab === "ranking" ? "bg-amber-500 text-slate-950 font-bold shadow" : "text-slate-300 hover:bg-slate-800"
+            }`}
+          >
+            <Trophy className="w-3.5 h-3.5" />
+            <span>Ranking</span>
+          </button>
         </div>
 
-        {/* Right: Student Profile, Score & Ranking Button */}
+        {/* Right: Student Profile, Score, Ranking & Diploma Button */}
         <div className="flex items-center gap-2 sm:gap-3">
           {/* Score Counter */}
           <div className="flex items-center gap-2 bg-slate-900/90 border border-slate-800 px-3 py-1.5 rounded-xl font-mono">
@@ -381,12 +437,33 @@ export default function App() {
           <button
             onClick={() => {
               sounds.playClick();
-              setIsRankingModalOpen(true);
+              setActiveTab("ranking");
             }}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-bold transition-all shadow-sm"
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-sm ${
+              activeTab === "ranking"
+                ? "bg-amber-500 text-slate-950 shadow"
+                : "bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40"
+            }`}
           >
             <Trophy className="w-4 h-4 text-amber-400" />
             <span className="hidden sm:inline">Ranking</span>
+          </button>
+
+          {/* Diploma Official Button */}
+          <button
+            onClick={() => {
+              sounds.playClick();
+              setIsCertificateOpen(true);
+            }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-sm ${
+              isDiplomaGranted
+                ? "bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 shadow-md font-extrabold"
+                : "bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700/80"
+            }`}
+            title="Ver estado de obtención de Diploma Académico"
+          >
+            <Award className={`w-4 h-4 ${isDiplomaGranted ? "text-slate-950" : "text-amber-400"}`} />
+            <span className="hidden sm:inline">Diploma</span>
           </button>
 
           {/* Student Profile Pill */}
@@ -458,6 +535,18 @@ export default function App() {
         >
           <Sliders className="w-3.5 h-3.5" />
           <span>Simulador</span>
+        </button>
+        <button
+          onClick={() => {
+            sounds.playClick();
+            setActiveTab("ranking");
+          }}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-semibold whitespace-nowrap ${
+            activeTab === "ranking" ? "bg-amber-500 text-slate-950 font-bold" : "bg-slate-900 text-slate-300"
+          }`}
+        >
+          <Trophy className="w-3.5 h-3.5" />
+          <span>Ranking</span>
         </button>
       </div>
 
@@ -587,10 +676,36 @@ export default function App() {
                       </p>
                     </div>
 
-                    {/* Formula box if present */}
+                    {/* Formula box & Simulator tool connection */}
                     {currentQuestion.formula && (
-                      <div className="bg-slate-950/80 border border-cyan-500/30 p-2.5 rounded-xl font-mono text-xs text-cyan-300">
-                        Ecuación de referencia: <strong>{currentQuestion.formula}</strong>
+                      <div className="bg-gradient-to-r from-slate-950 via-cyan-950/40 to-slate-950 border border-cyan-500/40 p-3 sm:p-3.5 rounded-xl flex flex-col gap-2 shadow-inner">
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
+                            <Calculator className="w-3.5 h-3.5" />
+                            Fórmula en Pantalla & Herramienta de Cálculo
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              sounds.playClick();
+                              setActiveTab("simulador");
+                            }}
+                            className="text-[11px] text-cyan-300 hover:text-white bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500/50 px-2.5 py-1 rounded-lg flex items-center gap-1 font-semibold transition-all shadow-sm"
+                          >
+                            <Sliders className="w-3.5 h-3.5" />
+                            <span>Abrir Simulador de Betz para calcular</span>
+                          </button>
+                        </div>
+
+                        <div className="bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800 text-center font-mono font-bold text-cyan-300 text-sm sm:text-base tracking-wider">
+                          {currentQuestion.formula}
+                        </div>
+
+                        {currentQuestion.formulaExplanation && (
+                          <p className="text-[11px] text-slate-300 leading-relaxed font-mono">
+                            {currentQuestion.formulaExplanation}
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>
@@ -723,7 +838,20 @@ export default function App() {
               selectedPart={selectedPart}
               onSelectPart={(part) => setSelectedPart(part)}
               onContinueToQuiz={() => setActiveTab("quiz")}
+              onDiagramCompleted={(completed) => {
+                setIsDiagramCompleted(completed);
+                if (completed) setDiagramMatchedCount(20);
+              }}
               onPartMatched={(part, isCorrect, bonusScore) => {
+                try {
+                  const saved = localStorage.getItem("turbine_diagram_matched");
+                  const count = saved ? Object.keys(JSON.parse(saved)).length : 0;
+                  setDiagramMatchedCount(count);
+                  if (count >= 20) setIsDiagramCompleted(true);
+                } catch {
+                  // ignore
+                }
+
                 if (isCorrect) {
                   const earned = bonusScore || 100;
                   const newScore = score + earned;
@@ -749,7 +877,24 @@ export default function App() {
         {/* TAB CONTENT: BETZ SIMULATOR */}
         {activeTab === "simulador" && (
           <div className="flex flex-col gap-4 animate-in fade-in">
-            <BetzSimulator onContinueToQuiz={() => setActiveTab("quiz")} />
+            <BetzSimulator
+              onContinueToQuiz={() => setActiveTab("quiz")}
+              onBetzChallengesCompleted={(completed, count) => {
+                setIsBetzCompleted(completed);
+                setBetzCompletedCount(count);
+              }}
+            />
+          </div>
+        )}
+
+        {/* TAB CONTENT: RANKING OFICIAL */}
+        {activeTab === "ranking" && (
+          <div className="flex flex-col gap-4 animate-in fade-in">
+            <RankingView
+              currentProfile={profile}
+              currentScore={score}
+              onOpenAuthModal={() => setIsAuthModalOpen(true)}
+            />
           </div>
         )}
       </main>
@@ -794,6 +939,16 @@ export default function App() {
           score={score}
           levelReached={currentLevel}
           accuracy={accuracyPercent}
+          isQuizCompleted={isQuizCompleted}
+          isDiagramCompleted={isDiagramCompleted}
+          isBetzCompleted={isBetzCompleted}
+          diagramCount={diagramMatchedCount}
+          betzCount={betzCompletedCount}
+          onNavigateToTab={(tab) => {
+            if (tab === "cuestionario") setActiveTab("quiz");
+            else if (tab === "diagrama") setActiveTab("diagrama");
+            else if (tab === "simulador") setActiveTab("simulador");
+          }}
         />
       )}
     </div>

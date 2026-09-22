@@ -67,19 +67,28 @@ export const TurbineCanvas3D: React.FC<TurbineCanvas3DProps> = ({
     container.appendChild(renderer.domElement);
 
     // Lighting
-    const ambientLight = new THREE.AmbientLight(0xddeeff, 0.9);
+    const ambientLight = new THREE.AmbientLight(0xddeeff, 1.0);
     scene.add(ambientLight);
 
-    const dirLight = new THREE.DirectionalLight(0xffffff, 2.2);
-    dirLight.position.set(10, 15, 10);
+    const dirLight = new THREE.DirectionalLight(0xfffdf5, 2.4);
+    dirLight.position.set(12, 16, 10);
     dirLight.castShadow = true;
     dirLight.shadow.mapSize.width = 1024;
     dirLight.shadow.mapSize.height = 1024;
     scene.add(dirLight);
 
-    const rimLight = new THREE.DirectionalLight(0x38bdf8, 1.2);
+    const rimLight = new THREE.DirectionalLight(0x38bdf8, 1.4);
     rimLight.position.set(-10, 6, -10);
     scene.add(rimLight);
+
+    // Warm Interior Maintenance LED Work Light inside Nacelle
+    const nacelleWorkLight = new THREE.PointLight(0xffedd5, 2.2, 7);
+    nacelleWorkLight.position.set(-0.5, 3.4, 0);
+    scene.add(nacelleWorkLight);
+
+    const nacelleCoolLight = new THREE.PointLight(0x06b6d4, 1.6, 5);
+    nacelleCoolLight.position.set(1.0, 3.2, 0.4);
+    scene.add(nacelleCoolLight);
 
     // Ground Grid / Pad
     const gridHelper = new THREE.GridHelper(24, 24, 0x1e293b, 0x0f172a);
@@ -116,6 +125,16 @@ export const TurbineCanvas3D: React.FC<TurbineCanvas3DProps> = ({
     const yawRing = new THREE.Mesh(yawRingGeo, yawRingMat);
     yawRing.position.set(0, 2.0, 0);
     turbineGroup.add(yawRing);
+
+    // 4 Hydraulic / Electric Yaw Drive Motors (Motorreductores de orientación)
+    for (let y = 0; y < 4; y++) {
+      const yawAngle = (y * Math.PI) / 2 + Math.PI / 4;
+      const motorGeo = new THREE.CylinderGeometry(0.08, 0.08, 0.42, 16);
+      const motorMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.8, roughness: 0.3 });
+      const motor = new THREE.Mesh(motorGeo, motorMat);
+      motor.position.set(Math.cos(yawAngle) * 0.7, 2.15, Math.sin(yawAngle) * 0.7);
+      turbineGroup.add(motor);
+    }
 
     // 3. NACELLE BASE / BEDPLATE (Pieza 17)
     const bedplateGeo = new THREE.BoxGeometry(4.6, 0.25, 1.4);
@@ -193,6 +212,17 @@ export const TurbineCanvas3D: React.FC<TurbineCanvas3DProps> = ({
     brakeDisc.position.set(-0.8, 3.1, 0);
     turbineGroup.add(brakeDisc);
 
+    // Brake disc ventilation cooling holes
+    for (let h = 0; h < 6; h++) {
+      const holeAngle = (h * Math.PI) / 3;
+      const holeGeo = new THREE.CylinderGeometry(0.035, 0.035, 0.07, 8);
+      const holeMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.9 });
+      const hole = new THREE.Mesh(holeGeo, holeMat);
+      hole.rotation.z = Math.PI / 2;
+      hole.position.set(-0.8, 3.1 + Math.sin(holeAngle) * 0.26, Math.cos(holeAngle) * 0.26);
+      turbineGroup.add(hole);
+    }
+
     // Brake caliper (Pinza del freno)
     const caliperGeo = new THREE.BoxGeometry(0.18, 0.32, 0.24);
     const caliperMat = new THREE.MeshStandardMaterial({ color: 0xdc2626 });
@@ -222,6 +252,16 @@ export const TurbineCanvas3D: React.FC<TurbineCanvas3DProps> = ({
     generator.rotation.z = Math.PI / 2;
     generator.position.set(-2.1, 3.1, 0);
     turbineGroup.add(generator);
+
+    // Copper Stator End Windings Rings
+    const copperMat = new THREE.MeshStandardMaterial({ color: 0xb45309, metalness: 0.8, roughness: 0.25 });
+    for (let c = 0; c < 3; c++) {
+      const coilGeo = new THREE.TorusGeometry(0.57, 0.025, 8, 24);
+      const coil = new THREE.Mesh(coilGeo, copperMat);
+      coil.rotation.y = Math.PI / 2;
+      coil.position.set(-1.7 - c * 0.35, 3.1, 0);
+      turbineGroup.add(coil);
+    }
 
     // 12. GENERATOR COOLING FAN (Pieza 20: Ventilador del generador)
     const fanCoverGeo = new THREE.CylinderGeometry(0.48, 0.54, 0.28, 20);

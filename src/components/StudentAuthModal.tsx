@@ -10,16 +10,16 @@ interface StudentAuthModalProps {
 }
 
 const PRESET_CLASSES = [
-  "3º ESO A",
-  "3º ESO B",
+  "FP Energías Renovables",
+  "FP Electricidad y Electrónica",
+  "1º Bachillerato Tecnología",
+  "1º Bachillerato Ciencias",
+  "2º Bachillerato",
+  "4º ESO Tecnología",
   "4º ESO A",
   "4º ESO B",
-  "1º Bachillerato A (Ciencias)",
-  "1º Bachillerato B (Tecnología)",
-  "2º Bachillerato",
-  "FP Energías Renovables",
-  "FP Electricidad",
-  "Otra clase...",
+  "3º ESO",
+  "Otra clase / grupo...",
 ];
 
 export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
@@ -29,7 +29,7 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
 }) => {
   const [name, setName] = useState<string>(initialProfile?.name || "");
   const [selectedClass, setSelectedClass] = useState<string>(
-    initialProfile?.studentClass || PRESET_CLASSES[0]
+    initialProfile?.studentClass || "FP Energías Renovables"
   );
   const [customClass, setCustomClass] = useState<string>("");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -133,9 +133,12 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
             )}
           </div>
 
-          <div className="flex items-center gap-2 text-[11px] text-slate-400 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/80">
-            <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span>Tus puntos se sincronizan con la base de datos escolar al responder cada pregunta.</span>
+          <div className="flex items-start gap-2 text-[11px] text-slate-300 bg-slate-950/70 p-2.5 rounded-xl border border-emerald-500/20">
+            <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-emerald-300">Guardado y Ranking Oficial:</p>
+              <p className="text-slate-400 text-[10.5px]">Tus puntuaciones y progreso se almacenan en el archivo central del servidor (<code className="text-cyan-300 bg-slate-800 px-1 rounded">/data/ranking.json</code>) y en la memoria local de este navegador.</p>
+            </div>
           </div>
 
           {/* Submit Button */}

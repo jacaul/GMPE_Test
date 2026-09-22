@@ -723,9 +723,9 @@ export default function App() {
               selectedPart={selectedPart}
               onSelectPart={(part) => setSelectedPart(part)}
               onContinueToQuiz={() => setActiveTab("quiz")}
-              onPartMatched={(part, isCorrect) => {
+              onPartMatched={(part, isCorrect, bonusScore) => {
                 if (isCorrect) {
-                  const earned = 100;
+                  const earned = bonusScore || 100;
                   const newScore = score + earned;
                   setScore(newScore);
                   const newCorrect = correctAnswersCount + 1;
@@ -736,6 +736,10 @@ export default function App() {
                   if (profile) {
                     syncScoreToServer(profile, newScore, currentLevel, newCorrect, newTotal);
                   }
+                } else {
+                  const newTotal = totalQuestionsAnswered + 1;
+                  setTotalQuestionsAnswered(newTotal);
+                  setStreak(0);
                 }
               }}
             />

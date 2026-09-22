@@ -1,0 +1,6 @@
+{
+  "name": "Aerogenerador 3D & Límite de Betz",
+  "description": "Juego interactivo en 3D sobre la anatomía del aerogenerador, física eólica y el Límite de Betz con niveles progresivos y ranking escolar global.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

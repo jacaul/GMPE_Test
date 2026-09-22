@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { StudentProfile } from "../types";
 import { User, School, Sparkles, ArrowRight, ShieldCheck } from "lucide-react";
 import { sounds } from "../utils/audio";
@@ -26,6 +26,15 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
       : "1º FPGS Energías Renovables (Diurno)"
   );
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (initialProfile) {
+      if (initialProfile.name) setName(initialProfile.name);
+      if (initialProfile.studentClass && PRESET_CLASSES.includes(initialProfile.studentClass)) {
+        setSelectedClass(initialProfile.studentClass);
+      }
+    }
+  }, [initialProfile]);
 
   if (!isOpen) return null;
 

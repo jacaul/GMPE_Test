@@ -48,6 +48,7 @@ export const InteractiveDiagram: React.FC<InteractiveDiagramProps> = ({
   const [wrongShakeId, setWrongShakeId] = useState<number | null>(null);
   const [showTechnicalList, setShowTechnicalList] = useState<boolean>(true);
   const [displayMode, setDisplayMode] = useState<"2d" | "3d" | "split">("2d");
+  const [resetNotice, setResetNotice] = useState<string | null>(null);
 
   // Timer per part
   const [timeLeft, setTimeLeft] = useState<number>(SECONDS_PER_PART);
@@ -108,16 +109,24 @@ export const InteractiveDiagram: React.FC<InteractiveDiagramProps> = ({
       onPartMatched(currentActivePart, false, 0);
     }
 
+    setResetNotice("¡Tiempo agotado! Se han barajado las respuestas y se reinicia el diagrama desde cero (0/20).");
+    setTimeout(() => setResetNotice(null), 3500);
+
+    // Reshuffle parts options
+    setShuffledParts([...TURBINE_PARTS].sort(() => Math.random() - 0.5));
+    // Clear matches and localStorage
+    setMatchedMap({});
+    localStorage.removeItem("turbine_diagram_matched");
+    if (onDiagramCompleted) onDiagramCompleted(false);
+
     setTimeout(() => {
       setWrongShakeId(null);
       setIsTimedOut(false);
-      // Advance to next unsolved target
-      const nextUnsolved = TURBINE_PARTS.find((p) => !matchedMap[p.id] && p.id !== activeTargetId);
-      if (nextUnsolved) {
-        setActiveTargetId(nextUnsolved.id);
-        if (onSelectPart) onSelectPart(nextUnsolved);
-      }
-    }, 1500);
+      setActiveTargetId(1);
+      setTimeLeft(SECONDS_PER_PART);
+      const firstPart = TURBINE_PARTS.find((p) => p.id === 1);
+      if (firstPart && onSelectPart) onSelectPart(firstPart);
+    }, 1200);
   };
 
   const handleSelectHotspot = (partId: number) => {
@@ -170,14 +179,31 @@ export const InteractiveDiagram: React.FC<InteractiveDiagramProps> = ({
         setActiveTargetId(null);
       }
     } else {
-      // Incorrect
+      // Incorrect -> Reshuffle options and restart diagram from 0!
       sounds.playWrong();
       setWrongShakeId(activeTargetId);
-      setTimeout(() => setWrongShakeId(null), 600);
 
       if (onPartMatched) {
         onPartMatched(chosenPart, false, 0);
       }
+
+      setResetNotice("¡Respuesta incorrecta! Se han barajado las respuestas y se reinicia desde cero (0/20).");
+      setTimeout(() => setResetNotice(null), 3500);
+
+      // Reshuffle parts options
+      setShuffledParts([...TURBINE_PARTS].sort(() => Math.random() - 0.5));
+      // Clear matches and localStorage
+      setMatchedMap({});
+      localStorage.removeItem("turbine_diagram_matched");
+      if (onDiagramCompleted) onDiagramCompleted(false);
+
+      setTimeout(() => {
+        setWrongShakeId(null);
+        setActiveTargetId(1);
+        setTimeLeft(SECONDS_PER_PART);
+        const firstPart = TURBINE_PARTS.find((p) => p.id === 1);
+        if (firstPart && onSelectPart) onSelectPart(firstPart);
+      }, 700);
     }
   };
 
@@ -299,6 +325,14 @@ export const InteractiveDiagram: React.FC<InteractiveDiagramProps> = ({
           )}
         </div>
       </div>
+
+      {/* RESET NOTICE BANNER ON WRONG ANSWER OR TIMEOUT */}
+      {resetNotice && (
+        <div className="bg-rose-950/90 border border-rose-500/80 p-3 rounded-xl flex items-center gap-3 text-rose-200 text-xs sm:text-sm font-bold shadow-lg animate-in slide-in-from-top-2">
+          <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 animate-bounce" />
+          <span>{resetNotice}</span>
+        </div>
+      )}
 
       {/* QUESTION BANNER WITH ACTIVE COMPONENT & TIME LIMIT */}
       {!isAllCompleted && activeTargetId && (
@@ -452,31 +486,46 @@ export const InteractiveDiagram: React.FC<InteractiveDiagramProps> = ({
               <line x1="495" y1="347" x2="870" y2="347" stroke="#64748b" strokeWidth="1.5" strokeDasharray="10,4" />
 
               {/* 4. NACELLE CANOPY SHELL (Pieza 19: Dosel / cubierta de la góndola) */}
-              <g id="nacelle-canopy-group">
+              <g id="nacelle-canopy-group" className="transition-all">
+                {/* Outer fiberglass composite shell with thickness */}
                 <path
-                  d="M 460 220 C 460 155, 550 142, 840 145 C 910 147, 935 200, 935 280 C 935 340, 895 355, 875 355 L 480 355 Z"
-                  fill="#0284c7"
-                  fillOpacity="0.08"
-                  stroke="#38bdf8"
-                  strokeWidth="3"
+                  d="M 455 220 C 455 150, 545 140, 840 142 C 915 144, 940 195, 940 280 C 940 342, 898 358, 875 358 L 475 358 Z"
+                  fill={activeTargetId === 19 ? "#0284c7" : "#0f172a"}
+                  fillOpacity={activeTargetId === 19 ? "0.22" : "0.07"}
+                  stroke={activeTargetId === 19 ? "#38bdf8" : "#0284c7"}
+                  strokeWidth={activeTargetId === 19 ? "4" : "2.5"}
+                  className={activeTargetId === 19 ? "animate-pulse" : ""}
                 />
-                {/* Internal aerodynamic stiffeners */}
+                {/* Inner shell boundary / wall thickness (sandwich core) */}
                 <path
-                  d="M 470 225 C 470 165, 555 152, 835 155 C 900 157, 925 205, 925 278 C 925 332, 890 345, 870 345 L 490 345"
+                  d="M 465 222 C 465 158, 550 148, 835 150 C 905 152, 930 200, 930 275 C 930 334, 890 348, 870 348 L 485 348"
                   fill="none"
-                  stroke="#0ea5e9"
-                  strokeWidth="1.2"
+                  stroke="#38bdf8"
+                  strokeWidth="1.5"
                   strokeDasharray="6,4"
-                  opacity="0.6"
+                  opacity={activeTargetId === 19 ? "0.9" : "0.45"}
                 />
-                {/* Roof maintenance access hatches (Pieza 19) */}
-                <rect x="610" y="141" width="70" height="6" rx="2" fill="#38bdf8" stroke="#0284c7" strokeWidth="1.5" />
-                <rect x="760" y="143" width="75" height="6" rx="2" fill="#38bdf8" stroke="#0284c7" strokeWidth="1.5" />
-                <text x="735" y="136" fill="#38bdf8" fontSize="9" fontWeight="bold" letterSpacing="1">
-                  DOSEL (CANOPY)
-                </text>
+                {/* Roof maintenance access hatches & railing (Pieza 19) */}
+                <rect x="610" y="137" width="70" height="7" rx="2" fill={activeTargetId === 19 ? "#38bdf8" : "#0284c7"} stroke="#38bdf8" strokeWidth="1.5" />
+                <rect x="760" y="139" width="75" height="7" rx="2" fill={activeTargetId === 19 ? "#38bdf8" : "#0284c7"} stroke="#38bdf8" strokeWidth="1.5" />
+                {/* Roof safety handrail */}
+                <line x1="590" y1="134" x2="850" y2="136" stroke="#94a3b8" strokeWidth="1.8" />
+                <line x1="600" y1="134" x2="600" y2="142" stroke="#94a3b8" strokeWidth="1.8" />
+                <line x1="720" y1="135" x2="720" y2="142" stroke="#94a3b8" strokeWidth="1.8" />
+                <line x1="840" y1="136" x2="840" y2="142" stroke="#94a3b8" strokeWidth="1.8" />
+                {/* Distinct Canopy Label tag */}
+                <g transform="translate(775, 128)">
+                  <rect x="-4" y="-10" width="108" height="15" rx="3" fill="#0369a1" fillOpacity="0.85" stroke="#38bdf8" strokeWidth="1" />
+                  <text x="50" y="1" fill="#f0f9ff" fontSize="8.5" fontWeight="bold" textAnchor="middle" letterSpacing="0.5">
+                    DOSEL / CUBIERTA (#19)
+                  </text>
+                </g>
+                {/* Canopy tail aerodynamic cooling vents */}
+                <line x1="915" y1="230" x2="935" y2="230" stroke="#38bdf8" strokeWidth="2" opacity="0.7" />
+                <line x1="915" y1="245" x2="935" y2="245" stroke="#38bdf8" strokeWidth="2" opacity="0.7" />
+                <line x1="915" y1="260" x2="935" y2="260" stroke="#38bdf8" strokeWidth="2" opacity="0.7" />
                 {/* Canopy tail aerodynamic fin */}
-                <polygon points="840,145 925,65 935,115 925,148" fill="#1e293b" stroke="#38bdf8" strokeWidth="2" />
+                <polygon points="840,142 925,65 935,115 925,145" fill="#1e293b" stroke="#38bdf8" strokeWidth="2" />
               </g>
 
               {/* 5. METEOROLOGICAL SENSORS (Pieza 13: Sensores meteorológicos) */}
@@ -487,23 +536,94 @@ export const InteractiveDiagram: React.FC<InteractiveDiagramProps> = ({
               <circle cx="948" cy="40" r="4" fill="#38bdf8" />
 
               {/* 6. ROTOR HUB (Pieza 5: Buje) & NOSE CONE (Pieza 1: Cono de la hélice) */}
+              {/* Outer Nose cone with cutaway showing internal bracket */}
               <path
                 d="M 330 160 C 270 180, 200 240, 60 255 C 200 270, 270 330, 330 350 Z"
                 fill="url(#bladeGrad)"
+                fillOpacity={activeTargetId === 2 ? "0.35" : "0.75"}
                 stroke="#64748b"
                 strokeWidth="3.5"
               />
+              <path
+                d="M 330 160 C 270 180, 200 240, 60 255"
+                fill="none"
+                stroke="#cbd5e1"
+                strokeWidth="2"
+              />
+
               {/* SPINNER SUPPORT BRACKET & RING (Pieza 2: Soporte del cono) */}
-              <g id="spinner-support-bracket">
-                <ellipse cx="315" cy="255" rx="38" ry="96" fill="#1e293b" stroke="#38bdf8" strokeWidth="2.5" />
-                <ellipse cx="315" cy="255" rx="26" ry="76" fill="#0f172a" stroke="#64748b" strokeWidth="1.5" />
-                {/* Radial support ribs & bolts */}
-                <line x1="315" y1="162" x2="315" y2="348" stroke="#38bdf8" strokeWidth="2" strokeDasharray="4,2" />
-                <line x1="280" y1="255" x2="350" y2="255" stroke="#38bdf8" strokeWidth="2" strokeDasharray="4,2" />
-                <circle cx="315" cy="180" r="3.5" fill="#f8fafc" stroke="#0284c7" />
-                <circle cx="315" cy="215" r="4.5" fill="#38bdf8" stroke="#0284c7" />
-                <circle cx="315" cy="295" r="4.5" fill="#38bdf8" stroke="#0284c7" />
-                <circle cx="315" cy="330" r="3.5" fill="#f8fafc" stroke="#0284c7" />
+              {/* Highly detailed structural tubular steel truss & mounting arms */}
+              <g id="spinner-support-bracket" className="transition-all">
+                {/* Rear mounting ring flange on hub */}
+                <ellipse
+                  cx="320"
+                  cy="255"
+                  rx="32"
+                  ry="92"
+                  fill="#0f172a"
+                  stroke={activeTargetId === 2 ? "#f59e0b" : "#38bdf8"}
+                  strokeWidth={activeTargetId === 2 ? "3.5" : "2"}
+                  className={activeTargetId === 2 ? "animate-pulse" : ""}
+                />
+                {/* Forward support collar ring */}
+                <ellipse
+                  cx="245"
+                  cy="255"
+                  rx="22"
+                  ry="64"
+                  fill="#1e293b"
+                  stroke={activeTargetId === 2 ? "#fbbf24" : "#0284c7"}
+                  strokeWidth={activeTargetId === 2 ? "3" : "1.8"}
+                />
+
+                {/* Heavy structural diagonal steel struts / trusses connecting hub to cone tip */}
+                {/* Upper diagonal strut arm (Pointer #2 lands right here!) */}
+                <polygon
+                  points="320,185 315,195 240,225 242,215"
+                  fill={activeTargetId === 2 ? "#f59e0b" : "#475569"}
+                  stroke={activeTargetId === 2 ? "#fef08a" : "#94a3b8"}
+                  strokeWidth="2"
+                />
+                {/* Lower diagonal strut arm */}
+                <polygon
+                  points="320,325 315,315 240,285 242,295"
+                  fill={activeTargetId === 2 ? "#f59e0b" : "#475569"}
+                  stroke={activeTargetId === 2 ? "#fef08a" : "#94a3b8"}
+                  strokeWidth="2"
+                />
+                {/* Center axial support tube */}
+                <rect
+                  x="180"
+                  y="250"
+                  width="135"
+                  height="10"
+                  fill={activeTargetId === 2 ? "#d97706" : "#334155"}
+                  stroke={activeTargetId === 2 ? "#fde047" : "#64748b"}
+                  strokeWidth="1.5"
+                />
+                {/* Nose tip cone mount spider */}
+                <polygon
+                  points="245,220 180,250 180,260 245,290"
+                  fill="none"
+                  stroke={activeTargetId === 2 ? "#fbbf24" : "#38bdf8"}
+                  strokeWidth="2"
+                  strokeDasharray="4,2"
+                />
+
+                {/* Bolted mounting lugs with high-strength bolts */}
+                <circle cx="275" cy="209" r="6" fill={activeTargetId === 2 ? "#ef4444" : "#0284c7"} stroke="#ffffff" strokeWidth="2" />
+                <circle cx="318" cy="188" r="4.5" fill="#f8fafc" stroke="#0284c7" strokeWidth="1.5" />
+                <circle cx="318" cy="225" r="4.5" fill="#f8fafc" stroke="#0284c7" strokeWidth="1.5" />
+                <circle cx="318" cy="285" r="4.5" fill="#f8fafc" stroke="#0284c7" strokeWidth="1.5" />
+                <circle cx="318" cy="322" r="4.5" fill="#f8fafc" stroke="#0284c7" strokeWidth="1.5" />
+
+                {/* Distinct tag for Spinner Bracket (#2) */}
+                <g transform="translate(230, 185)">
+                  <rect x="-2" y="-10" width="94" height="15" rx="3" fill="#78350f" fillOpacity="0.85" stroke="#f59e0b" strokeWidth="1" />
+                  <text x="45" y="1" fill="#fef3c7" fontSize="8" fontWeight="bold" textAnchor="middle">
+                    SOPORTE CONO (#2)
+                  </text>
+                </g>
               </g>
 
               {/* BLADES (Pieza 3: Pala) */}
@@ -551,21 +671,53 @@ export const InteractiveDiagram: React.FC<InteractiveDiagramProps> = ({
               <line x1="712" y1="290" x2="730" y2="290" stroke="#713f12" strokeWidth="1.5" />
 
               {/* 11. DISC BRAKE & HYDRAULIC CALIPER (Pieza 9: Disco del freno) */}
-              <g id="brake-system">
+              <g id="brake-system" className="transition-all">
                 {/* Ventilated high-speed brake disc */}
-                <rect x="652" y="200" width="16" height="110" rx="3" fill="url(#brakeGrad)" stroke="#f59e0b" strokeWidth="2.5" />
-                {/* Radial cooling air slots */}
-                <line x1="655" y1="220" x2="665" y2="220" stroke="#78350f" strokeWidth="2" />
-                <line x1="655" y1="235" x2="665" y2="235" stroke="#78350f" strokeWidth="2" />
-                <line x1="655" y1="250" x2="665" y2="250" stroke="#78350f" strokeWidth="2" />
-                <line x1="655" y1="265" x2="665" y2="265" stroke="#78350f" strokeWidth="2" />
-                <line x1="655" y1="280" x2="665" y2="280" stroke="#78350f" strokeWidth="2" />
-                <line x1="655" y1="295" x2="665" y2="295" stroke="#78350f" strokeWidth="2" />
-                {/* Dual-Piston Hydraulic Brake Caliper */}
-                <rect x="642" y="194" width="36" height="32" rx="4" fill="#dc2626" stroke="#991b1b" strokeWidth="2" />
-                <circle cx="650" cy="210" r="3" fill="#fef2f2" />
-                <circle cx="670" cy="210" r="3" fill="#fef2f2" />
-                <line x1="660" y1="194" x2="660" y2="182" stroke="#ef4444" strokeWidth="2" />
+                <rect
+                  x="650"
+                  y="190"
+                  width="18"
+                  height="130"
+                  rx="3"
+                  fill="url(#brakeGrad)"
+                  stroke={activeTargetId === 9 ? "#f59e0b" : "#b45309"}
+                  strokeWidth={activeTargetId === 9 ? "3.5" : "2"}
+                  className={activeTargetId === 9 ? "animate-pulse" : ""}
+                />
+                {/* Radial cooling air slots & cross-drilled holes */}
+                <line x1="653" y1="210" x2="665" y2="210" stroke="#451a03" strokeWidth="2" />
+                <line x1="653" y1="225" x2="665" y2="225" stroke="#451a03" strokeWidth="2" />
+                <line x1="653" y1="240" x2="665" y2="240" stroke="#451a03" strokeWidth="2" />
+                <line x1="653" y1="255" x2="665" y2="255" stroke="#451a03" strokeWidth="2" />
+                <line x1="653" y1="270" x2="665" y2="270" stroke="#451a03" strokeWidth="2" />
+                <line x1="653" y1="285" x2="665" y2="285" stroke="#451a03" strokeWidth="2" />
+                <line x1="653" y1="300" x2="665" y2="300" stroke="#451a03" strokeWidth="2" />
+
+                {/* Dual-Piston Hydraulic Brake Caliper (Brembo style in bright racing red) */}
+                <rect
+                  x="638"
+                  y="186"
+                  width="42"
+                  height="40"
+                  rx="5"
+                  fill={activeTargetId === 9 ? "#ef4444" : "#dc2626"}
+                  stroke={activeTargetId === 9 ? "#fecaca" : "#991b1b"}
+                  strokeWidth={activeTargetId === 9 ? "3" : "2"}
+                />
+                {/* Caliper pistons */}
+                <circle cx="648" cy="206" r="5" fill="#fef2f2" stroke="#991b1b" strokeWidth="1.5" />
+                <circle cx="670" cy="206" r="5" fill="#fef2f2" stroke="#991b1b" strokeWidth="1.5" />
+                {/* Hydraulic brake fluid hose */}
+                <line x1="659" y1="186" x2="659" y2="168" stroke="#ef4444" strokeWidth="3" />
+                <line x1="659" y1="168" x2="635" y2="168" stroke="#ef4444" strokeWidth="2" strokeDasharray="3,2" />
+
+                {/* Disc Brake label tag */}
+                <g transform="translate(615, 155)">
+                  <rect x="-2" y="-10" width="88" height="15" rx="3" fill="#7f1d1d" fillOpacity="0.9" stroke="#ef4444" strokeWidth="1" />
+                  <text x="42" y="1" fill="#fee2e2" fontSize="7.5" fontWeight="bold" textAnchor="middle">
+                    DISCO FRENO (#9)
+                  </text>
+                </g>
               </g>
 
               {/* 12. HIGH SPEED SHAFT & COUPLING (Pieza 10: Acoplamiento) */}

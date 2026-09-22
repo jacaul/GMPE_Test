@@ -37,10 +37,12 @@ import confetti from "canvas-confetti";
 export default function App() {
   // Student Profile State
   const [profile, setProfile] = useState<StudentProfile | null>(null);
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
+  // Always start on student identification page on load as requested
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(true);
   const [isRankingModalOpen, setIsRankingModalOpen] = useState<boolean>(false);
   const [isCertificateOpen, setIsCertificateOpen] = useState<boolean>(false);
   const [isMuted, setIsMuted] = useState<boolean>(sounds.isMuted);
+  const [quizResetNotice, setQuizResetNotice] = useState<string | null>(null);
 
   // Tab navigation
   const [activeTab, setActiveTab] = useState<"quiz" | "diagrama" | "simulador" | "ranking">("quiz");
@@ -100,16 +102,16 @@ export default function App() {
     }
   });
 
-  // Load profile from localStorage on start
+  // Load profile from localStorage on start - Always prompt identification on initial load
   useEffect(() => {
     try {
       const savedProfile = localStorage.getItem("turbine_student_profile");
       if (savedProfile) {
         const parsed = JSON.parse(savedProfile);
         setProfile(parsed);
-      } else {
-        setIsAuthModalOpen(true);
       }
+      // Always open identification on web load as requested
+      setIsAuthModalOpen(true);
 
       const savedScore = localStorage.getItem("turbine_saved_score");
       if (savedScore) {
@@ -255,25 +257,44 @@ export default function App() {
     } else {
       sounds.playWrong();
       setStreak(0);
+      const newFails = failsCount + 1;
+      setFailsCount(newFails);
+      localStorage.setItem("turbine_fails_count", newFails.toString());
+
       if (profile) {
         syncScoreToServer(profile, score, currentLevel, correctAnswersCount, newTotal);
       }
     }
   };
 
-  // Timeout handler
+  // Timeout handler: resets all questions from beginning instead of revealing correct answer
   const handleTimeout = () => {
     if (isAnswerSubmitted || !currentQuestion) return;
     sounds.playWrong();
-    setIsAnswerSubmitted(true);
-    setIsTimerActive(false);
-    setSelectedOption(-1); // timeout indicator
     setStreak(0);
+
+    const newFails = failsCount + 1;
+    setFailsCount(newFails);
+    localStorage.setItem("turbine_fails_count", newFails.toString());
 
     const newTotal = totalQuestionsAnswered + 1;
     setTotalQuestionsAnswered(newTotal);
+
+    setQuizResetNotice(
+      "¡Tiempo agotado! En vez de mostrar la respuesta correcta, se reinician todas las preguntas del desafío desde el nivel 1."
+    );
+    setTimeout(() => setQuizResetNotice(null), 4500);
+
+    // Reset quiz to beginning (level 1, question 0)
+    setCurrentLevel(1);
+    setCurrentQuestionIndex(0);
+    setSelectedOption(null);
+    setIsAnswerSubmitted(false);
+    setIsTimerActive(true);
+    setScore(0);
+
     if (profile) {
-      syncScoreToServer(profile, score, currentLevel, correctAnswersCount, newTotal);
+      syncScoreToServer(profile, 0, 1, correctAnswersCount, newTotal);
     }
   };
 
@@ -638,7 +659,14 @@ export default function App() {
             </div>
 
             {/* Right Question Card (7 cols) */}
-            <div className="lg:col-span-7 flex flex-col">
+            <div className="lg:col-span-7 flex flex-col gap-3">
+              {quizResetNotice && (
+                <div className="bg-rose-950/90 border border-rose-500/80 p-3.5 rounded-xl flex items-center gap-3 text-rose-200 text-xs sm:text-sm font-bold shadow-lg animate-in slide-in-from-top-2">
+                  <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 animate-bounce" />
+                  <span>{quizResetNotice}</span>
+                </div>
+              )}
+
               {currentQuestion ? (
                 <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-2xl flex flex-col justify-between gap-5 flex-1 relative overflow-hidden">
                   {/* Question header info */}
@@ -868,6 +896,11 @@ export default function App() {
                   const newTotal = totalQuestionsAnswered + 1;
                   setTotalQuestionsAnswered(newTotal);
                   setStreak(0);
+                  setFailsCount((prev) => {
+                    const updated = prev + 1;
+                    localStorage.setItem("turbine_fails_count", updated.toString());
+                    return updated;
+                  });
                 }
               }}
             />
@@ -882,6 +915,14 @@ export default function App() {
               onBetzChallengesCompleted={(completed, count) => {
                 setIsBetzCompleted(completed);
                 setBetzCompletedCount(count);
+              }}
+              onFailure={() => {
+                setFailsCount((prev) => {
+                  const updated = prev + 1;
+                  localStorage.setItem("turbine_fails_count", updated.toString());
+                  return updated;
+                });
+                setStreak(0);
               }}
             />
           </div>

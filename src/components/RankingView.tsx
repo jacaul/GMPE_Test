@@ -13,6 +13,7 @@ import {
   CheckCircle,
   Sparkles,
   School,
+  AlertCircle,
 } from "lucide-react";
 import { sounds } from "../utils/audio";
 
@@ -79,8 +80,14 @@ export const RankingView: React.FC<RankingViewProps> = ({
     const uniqueClasses = Array.from(new Set(loadedData.map((e) => e.studentClass))).filter(Boolean);
     setClassesList(uniqueClasses);
 
-    // Sort by score desc
-    const sorted = [...loadedData].sort((a, b) => b.score - a.score);
+    // Sort strictly by fewest failures, then lowest time, then highest score
+    const sorted = [...loadedData].sort((a, b) => {
+      const failsA = a.failsCount ?? 0;
+      const failsB = b.failsCount ?? 0;
+      if (failsA !== failsB) return failsA - failsB;
+      if (a.totalTime !== b.totalTime) return a.totalTime - b.totalTime;
+      return b.score - a.score;
+    });
     setRankings(sorted);
     setIsLoading(false);
   };
@@ -97,6 +104,13 @@ export const RankingView: React.FC<RankingViewProps> = ({
       item.studentClass.toLowerCase().includes(searchQuery.toLowerCase());
     return matchClass && matchSearch;
   });
+
+  const formatTime = (secs?: number) => {
+    if (secs === undefined || isNaN(secs) || secs < 0) return "00:00";
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+  };
 
   const formatDate = (isoString?: string) => {
     if (!isoString) return "-";
@@ -245,7 +259,19 @@ export const RankingView: React.FC<RankingViewProps> = ({
               <th className="py-3 px-3 sm:px-4 font-bold text-center w-14">#</th>
               <th className="py-3 px-3 sm:px-4 font-bold">Estudiante / Alumno</th>
               <th className="py-3 px-3 sm:px-4 font-bold hidden sm:table-cell">Curso / Clase</th>
-              <th className="py-3 px-3 sm:px-4 font-bold">
+              <th className="py-3 px-3 sm:px-4 font-bold text-center">
+                <span className="inline-flex items-center gap-1 justify-center">
+                  <Clock className="w-3 h-3 text-sky-400" />
+                  Tiempo
+                </span>
+              </th>
+              <th className="py-3 px-3 sm:px-4 font-bold text-center">
+                <span className="inline-flex items-center gap-1 justify-center">
+                  <AlertCircle className="w-3 h-3 text-rose-400" />
+                  Fallos
+                </span>
+              </th>
+              <th className="py-3 px-3 sm:px-4 font-bold hidden md:table-cell">
                 <span className="flex items-center gap-1">
                   <Calendar className="w-3 h-3 text-slate-400" />
                   Fecha
@@ -257,7 +283,7 @@ export const RankingView: React.FC<RankingViewProps> = ({
           <tbody className="divide-y divide-slate-800/60">
             {filteredRankings.length === 0 ? (
               <tr>
-                <td colSpan={5} className="py-8 text-center text-slate-400">
+                <td colSpan={7} className="py-8 text-center text-slate-400">
                   No se encontraron resultados con ese criterio.
                 </td>
               </tr>
@@ -269,6 +295,8 @@ export const RankingView: React.FC<RankingViewProps> = ({
                 const isCurrent =
                   currentProfile &&
                   entry.studentName.toLowerCase() === currentProfile.name.toLowerCase();
+
+                const fails = entry.failsCount ?? 0;
 
                 return (
                   <tr
@@ -326,8 +354,28 @@ export const RankingView: React.FC<RankingViewProps> = ({
                       </span>
                     </td>
 
+                    {/* Tiempo Empleado */}
+                    <td className="py-3 px-3 sm:px-4 text-center font-mono font-bold text-sky-300 whitespace-nowrap">
+                      {formatTime(entry.totalTime)}
+                    </td>
+
+                    {/* Fallos Registrados */}
+                    <td className="py-3 px-3 sm:px-4 text-center whitespace-nowrap">
+                      <span
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-mono font-bold border ${
+                          fails === 0
+                            ? "bg-emerald-950/80 text-emerald-300 border-emerald-500/30"
+                            : fails <= 2
+                            ? "bg-amber-950/80 text-amber-300 border-amber-500/30"
+                            : "bg-rose-950/80 text-rose-300 border-rose-500/30"
+                        }`}
+                      >
+                        {fails} {fails === 1 ? "fallo" : "fallos"}
+                      </span>
+                    </td>
+
                     {/* Date */}
-                    <td className="py-3 px-3 sm:px-4 text-slate-400 font-mono text-[11px] whitespace-nowrap">
+                    <td className="py-3 px-3 sm:px-4 text-slate-400 font-mono text-[11px] whitespace-nowrap hidden md:table-cell">
                       {formatDate(entry.date)}
                     </td>
 

@@ -19,6 +19,7 @@ interface ScoreEntry {
   score: number;
   levelReached: number;
   totalTime: number; // in seconds
+  failsCount: number; // total mistakes/failures
   accuracy: number; // percentage
   answersCorrect: number;
   answersTotal: number;
@@ -72,15 +73,21 @@ app.get("/api/ranking", (req, res) => {
   if (filterClass && filterClass !== "all") {
     result = result.filter((entry) => entry.studentClass.toLowerCase() === filterClass.toLowerCase());
   }
-  // Sort by score DESC, then totalTime ASC
-  result.sort((a, b) => b.score - a.score || a.totalTime - b.totalTime);
+  // Calculate ranking strictly based on fewest failures, then lowest time, then highest score
+  result.sort((a, b) => {
+    const failsA = a.failsCount ?? 0;
+    const failsB = b.failsCount ?? 0;
+    if (failsA !== failsB) return failsA - failsB;
+    if (a.totalTime !== b.totalTime) return a.totalTime - b.totalTime;
+    return b.score - a.score;
+  });
   res.json({ success: true, count: result.length, data: result });
 });
 
 // POST score update / registration
 app.post("/api/ranking", (req, res) => {
   try {
-    const { studentName, studentClass, score, levelReached, totalTime, accuracy, answersCorrect, answersTotal } = req.body;
+    const { studentName, studentClass, score, levelReached, totalTime, failsCount, accuracy, answersCorrect, answersTotal } = req.body;
     if (!studentName || !studentClass) {
       res.status(400).json({ error: "El nombre del alumno y la clase son obligatorios" });
       return;
@@ -88,6 +95,7 @@ app.post("/api/ranking", (req, res) => {
 
     const cleanName = String(studentName).trim();
     const cleanClass = String(studentClass).trim();
+    const cleanFails = Number(failsCount) || 0;
 
     // Check if student already has a score in this class
     const existingIndex = rankingList.findIndex(
@@ -98,19 +106,17 @@ app.post("/api/ranking", (req, res) => {
 
     const now = new Date().toISOString();
     if (existingIndex >= 0) {
-      // Keep highest score or update if new score is higher
-      if (Number(score) >= rankingList[existingIndex].score) {
-        rankingList[existingIndex] = {
-          ...rankingList[existingIndex],
-          score: Math.max(rankingList[existingIndex].score, Number(score) || 0),
-          levelReached: Math.max(rankingList[existingIndex].levelReached, Number(levelReached) || 1),
-          totalTime: Number(totalTime) || rankingList[existingIndex].totalTime,
-          accuracy: Number(accuracy) || rankingList[existingIndex].accuracy,
-          answersCorrect: Number(answersCorrect) || rankingList[existingIndex].answersCorrect,
-          answersTotal: Number(answersTotal) || rankingList[existingIndex].answersTotal,
-          date: now,
-        };
-      }
+      rankingList[existingIndex] = {
+        ...rankingList[existingIndex],
+        score: Math.max(rankingList[existingIndex].score, Number(score) || 0),
+        levelReached: Math.max(rankingList[existingIndex].levelReached, Number(levelReached) || 1),
+        totalTime: Number(totalTime) || rankingList[existingIndex].totalTime,
+        failsCount: cleanFails,
+        accuracy: Number(accuracy) || rankingList[existingIndex].accuracy,
+        answersCorrect: Number(answersCorrect) || rankingList[existingIndex].answersCorrect,
+        answersTotal: Number(answersTotal) || rankingList[existingIndex].answersTotal,
+        date: now,
+      };
     } else {
       const newEntry: ScoreEntry = {
         id: `entry-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
@@ -119,6 +125,7 @@ app.post("/api/ranking", (req, res) => {
         score: Number(score) || 0,
         levelReached: Number(levelReached) || 1,
         totalTime: Number(totalTime) || 0,
+        failsCount: cleanFails,
         accuracy: Number(accuracy) || 0,
         answersCorrect: Number(answersCorrect) || 0,
         answersTotal: Number(answersTotal) || 0,
@@ -127,8 +134,14 @@ app.post("/api/ranking", (req, res) => {
       rankingList.push(newEntry);
     }
 
-    // Sort rankings
-    rankingList.sort((a, b) => b.score - a.score || a.totalTime - b.totalTime);
+    // Sort rankings: fewest failures first, then lowest time, then highest score
+    rankingList.sort((a, b) => {
+      const failsA = a.failsCount ?? 0;
+      const failsB = b.failsCount ?? 0;
+      if (failsA !== failsB) return failsA - failsB;
+      if (a.totalTime !== b.totalTime) return a.totalTime - b.totalTime;
+      return b.score - a.score;
+    });
     saveScores(rankingList);
 
     // Find student position

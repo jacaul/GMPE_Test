@@ -61,8 +61,14 @@ export const GlobalRankingModal: React.FC<GlobalRankingModalProps> = ({
       loadedData = loadedData.filter((item) => item.studentClass.toLowerCase() === selectedClass.toLowerCase());
     }
 
-    // Sort by score descending
-    loadedData.sort((a, b) => b.score - a.score);
+    // Sort strictly based on fewest failures, then lowest time, then highest score
+    loadedData.sort((a, b) => {
+      const failsA = a.failsCount ?? 0;
+      const failsB = b.failsCount ?? 0;
+      if (failsA !== failsB) return failsA - failsB;
+      if (a.totalTime !== b.totalTime) return a.totalTime - b.totalTime;
+      return b.score - a.score;
+    });
 
     setRankings(loadedData);
 
@@ -245,16 +251,17 @@ export const GlobalRankingModal: React.FC<GlobalRankingModalProps> = ({
                 <th className="pb-2 pl-2 w-12">Pos.</th>
                 <th className="pb-2">Alumno</th>
                 <th className="pb-2">Clase</th>
+                <th className="pb-2 text-center">Tiempo</th>
+                <th className="pb-2 text-center">Fallos</th>
                 <th className="pb-2 text-right">Puntos</th>
                 <th className="pb-2 text-right hidden sm:table-cell">Nivel</th>
-                <th className="pb-2 text-right hidden sm:table-cell">Tiempo</th>
-                <th className="pb-2 text-right pr-2">Aciertos</th>
+                <th className="pb-2 text-right pr-2">Precisión</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
               {filteredRankings.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-8 text-slate-500">
+                  <td colSpan={8} className="text-center py-8 text-slate-500">
                     No se han encontrado registros en esta categoría
                   </td>
                 </tr>
@@ -264,6 +271,8 @@ export const GlobalRankingModal: React.FC<GlobalRankingModalProps> = ({
                     currentProfile &&
                     entry.studentName.toLowerCase() === currentProfile.name.toLowerCase() &&
                     entry.studentClass.toLowerCase() === currentProfile.studentClass.toLowerCase();
+
+                  const fails = entry.failsCount ?? 0;
 
                   return (
                     <tr
@@ -294,14 +303,27 @@ export const GlobalRankingModal: React.FC<GlobalRankingModalProps> = ({
                         </div>
                       </td>
                       <td className="py-2.5 text-slate-300">{entry.studentClass}</td>
+                      <td className="py-2.5 text-center font-mono text-sky-400">
+                        {formatTime(entry.totalTime)}
+                      </td>
+                      <td className="py-2.5 text-center">
+                        <span
+                          className={`inline-flex items-center px-2 py-0.5 rounded-full font-mono text-[11px] font-bold border ${
+                            fails === 0
+                              ? "bg-emerald-950/80 text-emerald-300 border-emerald-500/30"
+                              : fails <= 2
+                              ? "bg-amber-950/80 text-amber-300 border-amber-500/30"
+                              : "bg-rose-950/80 text-rose-300 border-rose-500/30"
+                          }`}
+                        >
+                          {fails}
+                        </span>
+                      </td>
                       <td className="py-2.5 text-right font-mono font-bold text-emerald-400 text-sm">
                         {entry.score.toLocaleString()}
                       </td>
                       <td className="py-2.5 text-right font-mono text-slate-300 hidden sm:table-cell">
                         Nivel {entry.levelReached}
-                      </td>
-                      <td className="py-2.5 text-right font-mono text-slate-400 hidden sm:table-cell">
-                        {formatTime(entry.totalTime)}
                       </td>
                       <td className="py-2.5 text-right pr-2 font-mono text-cyan-300">
                         {entry.accuracy}%

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import confetti from "canvas-confetti";
 import {
   Wind,
@@ -17,17 +17,321 @@ import {
   Sparkles,
   Sliders,
   CheckCircle2,
+  Clock,
+  AlertTriangle,
 } from "lucide-react";
 import { sounds } from "../utils/audio";
+
+export interface BetzChallenge {
+  title: string;
+  formula: string;
+  formulaNote: string;
+  variables: { sym: string; desc: string; val: string }[];
+  preset: { windSpeed?: number; bladeRadius?: number; inductionFactor?: number; airDensity?: number };
+  question: string;
+  options: string[];
+  correct: number;
+  calculation: string;
+  explanation: string;
+}
+
+export const generateDynamicBetzChallenges = (): BetzChallenge[] => {
+  // Reto 1: Factor de inducción y Cp
+  const aPool = [
+    {
+      a: 0.333,
+      aName: "a = ⅓ (0.333)",
+      question: "Aplicando la fórmula Cp = 4·a·(1-a)² con la inducción óptima de Betz a = ⅓, ¿cuál es el coeficiente de potencia máximo exacto?",
+      options: [
+        "16/27 (≈ 59.26%)",
+        "1/2 (50.00%)",
+        "3/4 (75.00%)",
+        "2/3 (66.67%)",
+      ],
+      correct: 0,
+      calc: "Cp = 4 · (1/3) · (2/3)² = 4/3 · 4/9 = 16/27 ≈ 59.26%. Límite demostrado por Albert Betz.",
+    },
+    {
+      a: 0.20,
+      aName: "a = 0.20",
+      question: "Si el aerogenerador opera con factor de inducción axial a = 0.20, calcula con la fórmula Cp = 4·a·(1-a)² el rendimiento aerodinámico obtenido:",
+      options: [
+        "51.20% (Cp = 0.512)",
+        "59.26% (Betz)",
+        "42.50% (Cp = 0.425)",
+        "64.00% (Cp = 0.640)",
+      ],
+      correct: 0,
+      calc: "Cp = 4 · 0.20 · (1 - 0.20)² = 0.80 · (0.80)² = 0.80 · 0.64 = 0.512 = 51.20%.",
+    },
+    {
+      a: 0.25,
+      aName: "a = 0.25",
+      question: "Si la turbina frena el viento con factor de inducción axial a = 0.25, calcula según Cp = 4·a·(1-a)² el coeficiente Cp extraído:",
+      options: [
+        "56.25% (Cp = 0.5625)",
+        "50.00% (Cp = 0.5000)",
+        "59.26% (Betz)",
+        "45.00% (Cp = 0.4500)",
+      ],
+      correct: 0,
+      calc: "Cp = 4 · 0.25 · (1 - 0.25)² = 1.0 · (0.75)² = 0.5625 = 56.25%.",
+    },
+    {
+      a: 0.15,
+      aName: "a = 0.15",
+      question: "Con un frenado ligero del flujo eólico de a = 0.15, calcula según Cp = 4·a·(1-a)² el rendimiento eólico alcanzado:",
+      options: [
+        "43.35% (Cp = 0.4335)",
+        "30.00% (Cp = 0.3000)",
+        "59.26% (Betz)",
+        "51.20% (Cp = 0.5120)",
+      ],
+      correct: 0,
+      calc: "Cp = 4 · 0.15 · (1 - 0.15)² = 0.60 · (0.85)² = 0.60 · 0.7225 = 0.4335 = 43.35%.",
+    },
+    {
+      a: 0.40,
+      aName: "a = 0.40",
+      question: "Si las palas frenan excesivamente el flujo con a = 0.40, calcula según Cp = 4·a·(1-a)² el coeficiente Cp extraído:",
+      options: [
+        "57.60% (Cp = 0.576)",
+        "59.26% (Betz)",
+        "48.00% (Cp = 0.480)",
+        "62.40% (Cp = 0.624)",
+      ],
+      correct: 0,
+      calc: "Cp = 4 · 0.40 · (1 - 0.40)² = 1.60 · (0.60)² = 1.60 · 0.36 = 0.5760 = 57.60%.",
+    },
+  ];
+  const r1 = aPool[Math.floor(Math.random() * aPool.length)];
+
+  // Reto 2: Ley Cúbica v^3
+  const vPool = [
+    {
+      v1: 6,
+      v2: 12,
+      factor: 2,
+      calc: "P₂/P₁ = (12/6)³ = 2³ = 8 veces.",
+      options: ["Se multiplica por 8 (2³ = 8)", "Se duplica (x2)", "Se cuadruplica (x4)", "Se multiplica por 16"],
+      correct: 0,
+    },
+    {
+      v1: 5,
+      v2: 10,
+      factor: 2,
+      calc: "P₂/P₁ = (10/5)³ = 2³ = 8 veces.",
+      options: ["Se multiplica por 8 (2³ = 8)", "Se duplica (x2)", "Se cuadruplica (x4)", "Se multiplica por 6"],
+      correct: 0,
+    },
+    {
+      v1: 4,
+      v2: 12,
+      factor: 3,
+      calc: "P₂/P₁ = (12/4)³ = 3³ = 27 veces.",
+      options: ["Se multiplica por 27 (3³ = 27)", "Se multiplica por 9 (3² = 9)", "Se triplica (x3)", "Se multiplica por 18"],
+      correct: 0,
+    },
+    {
+      v1: 5,
+      v2: 15,
+      factor: 3,
+      calc: "P₂/P₁ = (15/5)³ = 3³ = 27 veces.",
+      options: ["Se multiplica por 27 (3³ = 27)", "Se multiplica por 9 (x9)", "Se triplica (x3)", "Se multiplica por 81"],
+      correct: 0,
+    },
+    {
+      v1: 3,
+      v2: 6,
+      factor: 2,
+      calc: "P₂/P₁ = (6/3)³ = 2³ = 8 veces.",
+      options: ["Se multiplica por 8 (2³ = 8)", "Se duplica (x2)", "Se cuadruplica (x4)", "Aumenta un 100%"],
+      correct: 0,
+    },
+    {
+      v1: 4,
+      v2: 8,
+      factor: 2,
+      calc: "P₂/P₁ = (8/4)³ = 2³ = 8 veces.",
+      options: ["Se multiplica por 8 (2³ = 8)", "Se cuadruplica (x4)", "Se duplica (x2)", "Se multiplica por 12"],
+      correct: 0,
+    },
+  ];
+  const r2 = vPool[Math.floor(Math.random() * vPool.length)];
+
+  // Reto 3: Velocidad en la estela lejana con a = 1/3 (v2 = v1 / 3)
+  const wakeSpeeds = [9, 12, 15, 18, 21, 24];
+  const r3v1 = wakeSpeeds[Math.floor(Math.random() * wakeSpeeds.length)];
+  const r3v2 = r3v1 / 3;
+  const r3Options = [
+    `${r3v2} m/s (un tercio del viento inicial: ${r3v1}/3)`,
+    `${(r3v1 / 2).toFixed(1)} m/s (la mitad)`,
+    "0 m/s (el aire se detiene completamente)",
+    `${r3v2 + 3} m/s`,
+  ];
+
+  // Reto 4: Radio de pala y área de barrido circular
+  const rPool = [
+    {
+      r1: 40,
+      r2: 80,
+      factor: 2,
+      mult: 4,
+      calc: "A₂/A₁ = (80/40)² = 2² = 4. ¡Área y potencia se cuadruplican!",
+      options: ["Se cuadruplican (x4, por ser R²)", "Se duplican (x2)", "Aumentan un 50%", "Se multiplican por 8"],
+      correct: 0,
+    },
+    {
+      r1: 30,
+      r2: 60,
+      factor: 2,
+      mult: 4,
+      calc: "A₂/A₁ = (60/30)² = 2² = 4. ¡El área y la potencia captada se cuadruplican!",
+      options: ["Se cuadruplican (x4, proporcional a R²)", "Se duplican (x2)", "Se triplican (x3)", "Se multiplican por 16"],
+      correct: 0,
+    },
+    {
+      r1: 30,
+      r2: 90,
+      factor: 3,
+      mult: 9,
+      calc: "A₂/A₁ = (90/30)² = 3² = 9. ¡Al triplicar el radio, el área y la potencia se multiplican por 9!",
+      options: ["Se multiplican por 9 (3² = 9)", "Se triplican (x3)", "Se multiplican por 6", "Se cuadruplican (x4)"],
+      correct: 0,
+    },
+    {
+      r1: 50,
+      r2: 100,
+      factor: 2,
+      mult: 4,
+      calc: "A₂/A₁ = (100/50)² = 2² = 4. ¡Al duplicar el radio, el área barrida se cuadruplica!",
+      options: ["Se cuadruplican (x4, según π·R²)", "Se duplican (x2)", "Aumentan un 100%", "Se multiplican por 8"],
+      correct: 0,
+    },
+    {
+      r1: 25,
+      r2: 75,
+      factor: 3,
+      mult: 9,
+      calc: "A₂/A₁ = (75/25)² = 3² = 9. ¡Al triplicar la longitud de pala, el área barrida se multiplica por 9!",
+      options: ["Se multiplican por 9 (3² = 9)", "Se triplican (x3)", "Se multiplican por 6", "Se multiplican por 27"],
+      correct: 0,
+    },
+  ];
+  const r4 = rPool[Math.floor(Math.random() * rPool.length)];
+
+  // Reto 5: Rendimiento global comercial
+  const cpChoices = [0.46, 0.47, 0.48, 0.49];
+  const mecChoices = [0.970, 0.972, 0.975];
+  const genChoices = [0.962, 0.965, 0.968];
+  const trafoChoices = [0.980, 0.982, 0.985];
+
+  const cpSel = cpChoices[Math.floor(Math.random() * cpChoices.length)];
+  const mecSel = mecChoices[Math.floor(Math.random() * mecChoices.length)];
+  const genSel = genChoices[Math.floor(Math.random() * genChoices.length)];
+  const trafoSel = trafoChoices[Math.floor(Math.random() * trafoChoices.length)];
+  const netPercent = (cpSel * mecSel * genSel * trafoSel * 100).toFixed(1);
+
+  return [
+    {
+      title: "Límite Máximo Teórico de Albert Betz (1919)",
+      formula: "Cp(a) = 4 · a · (1 - a)²",
+      formulaNote: "Derivada igualada a cero: dCp/da = 4(1 - 3a)(1 - a) = 0  ⇒  a = 1/3 (0.333)",
+      variables: [
+        { sym: "a", desc: "Factor de inducción axial (frenado del flujo)", val: r1.aName },
+        { sym: "Cp", desc: "Coeficiente de potencia extraída", val: r1.calc.split("=")[0] },
+      ],
+      preset: { windSpeed: 10, bladeRadius: 55, inductionFactor: r1.a },
+      question: r1.question,
+      options: r1.options,
+      correct: r1.correct,
+      calculation: r1.calc,
+      explanation: "Demostrado matemáticamente mediante balance de masa y conservación de cantidad de movimiento lineal.",
+    },
+    {
+      title: "Ley Cúbica de la Potencia del Viento (v³)",
+      formula: "P = ½ · ρ · A · v³",
+      formulaNote: "La potencia del viento depende directamente del cubo de su velocidad (v · v · v)",
+      variables: [
+        { sym: "ρ", desc: "Densidad del aire (IEC a nivel del mar)", val: "1.225 kg/m³" },
+        { sym: "v₁", desc: "Velocidad inicial del viento", val: `${r2.v1} m/s` },
+        { sym: "v₂", desc: "Velocidad final arreciada", val: `${r2.v2} m/s (factor x${r2.factor})` },
+      ],
+      preset: { windSpeed: r2.v2, bladeRadius: 55, inductionFactor: 0.333 },
+      question: `Con la fórmula P = ½·ρ·A·v³ en pantalla, si el viento pasa de v₁ = ${r2.v1} m/s a v₂ = ${r2.v2} m/s, ¿por qué factor se multiplica la potencia total disponible en el flujo de aire?`,
+      options: r2.options,
+      correct: r2.correct,
+      calculation: `Relación de potencias: P₂ / P₁ = (v₂ / v₁)³ = (${r2.v2} / ${r2.v1})³ = ${r2.calc}`,
+      explanation: "La potencia del viento es proporcional a la velocidad al cubo (v³). Al elevar el factor al cubo se multiplica drásticamente la potencia.",
+    },
+    {
+      title: "Velocidad del Viento Aguas Abajo en la Estela (v₂)",
+      formula: "v₂ = v₁ · (1 - 2a)",
+      formulaNote: "Velocidad remanente en la estela lejana tras extraer la máxima energía",
+      variables: [
+        { sym: "v₁", desc: "Velocidad del viento aguas arriba", val: `${r3v1} m/s` },
+        { sym: "a", desc: "Factor de inducción axial óptimo", val: "1/3 (0.333)" },
+        { sym: "v₂", desc: "Velocidad estela lejana aguas abajo", val: `v₁ · (1/3) = ${r3v2} m/s` },
+      ],
+      preset: { windSpeed: r3v1, bladeRadius: 55, inductionFactor: 0.333 },
+      question: `Si el viento incidente es v₁ = ${r3v1} m/s y el rotor opera en el óptimo de Betz (a = ⅓), aplica la fórmula v₂ = v₁(1 - 2a) para calcular a qué velocidad sale el viento en la estela detrás de la turbina:`,
+      options: r3Options,
+      correct: 0,
+      calculation: `Cálculo: v₂ = ${r3v1} · [1 - 2·(1/3)] = ${r3v1} · (1 - 2/3) = ${r3v1} · (1/3) = ${r3v2} m/s. El aire conserva un tercio de su velocidad para evacuar la masa de aire sin bloquear el paso.`,
+      explanation: "La conservación de masa exige que el aire no se detenga por completo. Con a = 1/3, la estela retiene exactamente 1/3 de la velocidad inicial.",
+    },
+    {
+      title: "Área de Barrido y Radio de Pala (R²)",
+      formula: "A = π · R²   ⇒   P = ½ · ρ · (π · R²) · v³",
+      formulaNote: "El área circular y la potencia crecen con el cuadrado de la longitud de pala",
+      variables: [
+        { sym: "R₁", desc: "Longitud de pala inicial", val: `${r4.r1} m` },
+        { sym: "R₂", desc: "Nueva longitud de pala (repowering)", val: `${r4.r2} m (factor x${r4.factor})` },
+      ],
+      preset: { windSpeed: 10, bladeRadius: r4.r2, inductionFactor: 0.333 },
+      question: `Si en un parque eólico se sustituyen palas de R₁ = ${r4.r1} m por nuevas palas de R₂ = ${r4.r2} m (factor x${r4.factor}), ¿qué ocurre con el área de barrido y la potencia captada según A = π·R²?`,
+      options: r4.options,
+      correct: r4.correct,
+      calculation: r4.calc,
+      explanation: "El área barrida por las palas es un círculo: A = π · R². Crece con el cuadrado del radio: al multiplicar por K el radio, el área y la potencia aumentan en K².",
+    },
+    {
+      title: "Cadena de Rendimientos Comerciales a Red (η_global)",
+      formula: "η_global = Cp,real · η_mec · η_gen · η_trafo",
+      formulaNote: "Eficiencia neta comercial desde el viento libre hasta la inyección a red eléctrica",
+      variables: [
+        { sym: "Cp,real", desc: "Rendimiento aerodinámico real", val: `${cpSel} (${(cpSel * 100).toFixed(1)}%)` },
+        { sym: "η_mec", desc: "Rendimiento multiplicadora", val: `${mecSel} (${(mecSel * 100).toFixed(1)}%)` },
+        { sym: "η_gen", desc: "Rendimiento generador eléctrico", val: `${genSel} (${(genSel * 100).toFixed(1)}%)` },
+        { sym: "η_trafo", desc: "Rendimiento transformador", val: `${trafoSel} (${(trafoSel * 100).toFixed(1)}%)` },
+      ],
+      preset: { windSpeed: 11, bladeRadius: 60, inductionFactor: 0.333 },
+      question: `Utilizando la fórmula de la cadena de pérdidas en serie, si Cp = ${cpSel}, η_mec = ${mecSel}, η_gen = ${genSel} y η_trafo = ${trafoSel}, ¿cuál es el rendimiento global neto vertido a la red?`,
+      options: [
+        `≈ ${netPercent}% de la energía del viento incidente`,
+        "≈ 59.3% (Límite de Betz)",
+        "≈ 25.0%",
+        "≈ 85.0%",
+      ],
+      correct: 0,
+      calculation: `Cálculo: η_global = ${cpSel} · ${mecSel} · ${genSel} · ${trafoSel} ≈ ${(Number(netPercent) / 100).toFixed(4)} = ${netPercent}%.`,
+      explanation: "Una turbina comercial de primer nivel convierte un 42-45% de la energía eólica total en electricidad útil inyectada a la red eléctrica.",
+    },
+  ];
+};
 
 interface BetzSimulatorProps {
   onContinueToQuiz?: () => void;
   onBetzChallengesCompleted?: (isCompleted: boolean, solvedCount: number) => void;
+  onFailure?: () => void;
 }
+
+const SECONDS_PER_CHALLENGE = 45;
 
 export const BetzSimulator: React.FC<BetzSimulatorProps> = ({
   onContinueToQuiz,
   onBetzChallengesCompleted,
+  onFailure,
 }) => {
   // Active simulator sub-tab
   const [activeMode, setActiveMode] = useState<"teoria" | "rendimientos" | "dimensionamiento">("teoria");
@@ -43,11 +347,17 @@ export const BetzSimulator: React.FC<BetzSimulatorProps> = ({
   const [targetPowerMW, setTargetPowerMW] = useState<number>(15);
   const [townPopulation, setTownPopulation] = useState<number>(25000);
 
-  // Challenge questions state
+  // Dynamic Challenge questions state
+  const [challenges, setChallenges] = useState<BetzChallenge[]>(() => generateDynamicBetzChallenges());
   const [selectedChallengeIdx, setSelectedChallengeIdx] = useState<number>(0);
   const [userChallengeAnswer, setUserChallengeAnswer] = useState<number | null>(null);
   const [challengeFeedback, setChallengeFeedback] = useState<string | null>(null);
   const [presetLoadedNotice, setPresetLoadedNotice] = useState<string | null>(null);
+  const [challengeResetNotice, setChallengeResetNotice] = useState<string | null>(null);
+
+  // Countdown timer for challenges
+  const [challengeTimeLeft, setChallengeTimeLeft] = useState<number>(SECONDS_PER_CHALLENGE);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Solved challenges persistence
   const [solvedChallenges, setSolvedChallenges] = useState<number[]>(() => {
@@ -58,6 +368,55 @@ export const BetzSimulator: React.FC<BetzSimulatorProps> = ({
       return [];
     }
   });
+
+  // Reset function upon failure or timeout
+  const triggerFailureAndRestart = (message: string) => {
+    sounds.playWrong();
+    if (onFailure) onFailure();
+
+    setChallengeResetNotice(message);
+    setTimeout(() => setChallengeResetNotice(null), 4000);
+
+    // Regenerate new challenge set with different numbers
+    const newChallenges = generateDynamicBetzChallenges();
+    setChallenges(newChallenges);
+
+    // Reset progress to 0
+    setSolvedChallenges([]);
+    localStorage.removeItem("turbine_betz_challenges_completed");
+    setSelectedChallengeIdx(0);
+    setUserChallengeAnswer(null);
+    setChallengeFeedback(null);
+    setChallengeTimeLeft(SECONDS_PER_CHALLENGE);
+
+    if (onBetzChallengesCompleted) onBetzChallengesCompleted(false, 0);
+  };
+
+  // Timer countdown hook
+  useEffect(() => {
+    // Only run challenge timer if not all challenges are solved and current challenge is not yet answered correctly
+    const isCurrentSolved = solvedChallenges.includes(selectedChallengeIdx);
+    if (isCurrentSolved) return;
+
+    if (timerRef.current) clearInterval(timerRef.current);
+
+    timerRef.current = setInterval(() => {
+      setChallengeTimeLeft((prev) => {
+        if (prev <= 1) {
+          if (timerRef.current) clearInterval(timerRef.current);
+          triggerFailureAndRestart(
+            "¡Tiempo agotado en el reto! Se han regenerado nuevos datos y se reinician los retos desde el Reto 1."
+          );
+          return SECONDS_PER_CHALLENGE;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [selectedChallengeIdx, solvedChallenges, challenges]);
 
   // Fundamental Calculations
   const diameter = bladeRadius * 2;
@@ -116,119 +475,6 @@ export const BetzSimulator: React.FC<BetzSimulatorProps> = ({
   // CO2 avoided (approx 0.25 tonnes CO2 per MWh in Spanish grid mix)
   const co2AvoidedTonnes = Math.round(annualMWh * 0.25);
 
-  // Challenges bank with formulas and simulator integration
-  const CHALLENGES = [
-    {
-      title: "Límite Máximo Teórico de Albert Betz (1919)",
-      formula: "Cp(a) = 4 · a · (1 - a)²",
-      formulaNote: "Derivada igualada a cero: dCp/da = 4(1 - 3a)(1 - a) = 0  ⇒  a = 1/3 (0.333)",
-      variables: [
-        { sym: "a", desc: "Factor de inducción axial (frenado del flujo)", val: "1/3 ≈ 0.333" },
-        { sym: "Cp", desc: "Coeficiente de potencia extraída", val: "16/27 ≈ 59.26%" },
-      ],
-      preset: { windSpeed: 10, bladeRadius: 55, inductionFactor: 0.333 },
-      question: "Aplicando la fórmula del coeficiente de potencia Cp = 4·a·(1-a)² con inducción axial óptima a = ⅓, ¿cuál es la fracción matemática exacta y el porcentaje límite insuperable demostrado por Albert Betz?",
-      options: [
-        "16/27 (≈ 59.26%)",
-        "1/2 (50.00%)",
-        "3/4 (75.00%)",
-        "2/3 (66.67%)",
-      ],
-      correct: 0,
-      calculation: "Sustituyendo a = 1/3: Cp = 4 · (1/3) · (1 - 1/3)² = 4/3 · (2/3)² = 4/3 · 4/9 = 16/27 ≈ 0.59259 (59.26%).",
-      explanation:
-        "Demostrado matemáticamente mediante conservación de masa y momento lineal: ninguna turbina en flujo abierto puede extraer más de 16/27 (59.26%) de la energía del viento.",
-    },
-    {
-      title: "Ley Cúbica de la Potencia del Viento (v³)",
-      formula: "P = ½ · ρ · A · v³",
-      formulaNote: "La potencia del viento depende directamente del cubo de su velocidad (v · v · v)",
-      variables: [
-        { sym: "ρ", desc: "Densidad del aire (IEC a nivel del mar)", val: "1.225 kg/m³" },
-        { sym: "A", desc: "Área de barrido del rotor (π · R²)", val: "π · 55² ≈ 9,503 m²" },
-        { sym: "v", desc: "Velocidad del viento incidente", val: "m/s" },
-      ],
-      preset: { windSpeed: 12, bladeRadius: 55, inductionFactor: 0.333 },
-      question: "Con la fórmula P = ½·ρ·A·v³ en pantalla, si el viento arrecia pasando de v₁ = 6 m/s a v₂ = 12 m/s (se duplica la velocidad), ¿por qué factor se multiplica la potencia total disponible en el flujo?",
-      options: [
-        "Se duplica (x2)",
-        "Se cuadruplica (x4)",
-        "Se multiplica por 8 (2³ = 8 veces)",
-        "Se multiplica por 10 (x10)",
-      ],
-      correct: 2,
-      calculation: "Relación de potencias: P₂ / P₁ = (v₂ / v₁)³ = (12 / 6)³ = 2³ = 8. ¡Al duplicar el viento la energía disponible se multiplica por ocho!",
-      explanation:
-        "La energía cinética es ½·m·v² y el flujo másico es m_dot = ρ·A·v. Al multiplicar masa por energía, la potencia resulta proporcional al cubo: 2³ = 8.",
-    },
-    {
-      title: "Velocidad del Viento Aguas Abajo en la Estela (v₂)",
-      formula: "v₂ = v₁ · (1 - 2a)",
-      formulaNote: "Velocidad remanente en la estela lejana tras extraer la máxima energía",
-      variables: [
-        { sym: "v₁", desc: "Velocidad del viento aguas arriba", val: "12 m/s" },
-        { sym: "a", desc: "Factor de inducción axial óptimo", val: "1/3 (0.333)" },
-        { sym: "v₂", desc: "Velocidad estela lejana aguas abajo", val: "v₁ · (1/3) = 4 m/s" },
-      ],
-      preset: { windSpeed: 12, bladeRadius: 55, inductionFactor: 0.333 },
-      question: "Si el viento incidente es v₁ = 12 m/s y el rotor opera en el óptimo de Betz (a = ⅓), aplica la fórmula v₂ = v₁(1 - 2a) para calcular a qué velocidad sale el viento detrás del rotor:",
-      options: [
-        "4 m/s (un tercio de la velocidad inicial)",
-        "6 m/s (la mitad)",
-        "0 m/s (se detiene totalmente)",
-        "8 m/s",
-      ],
-      correct: 0,
-      calculation: "Cálculo directo: v₂ = 12 · [1 - 2·(1/3)] = 12 · (1 - 2/3) = 12 · (1/3) = 4 m/s. El aire conserva un tercio de su velocidad para evacuar la masa de aire sin bloquear el paso.",
-      explanation:
-        "La ecuación de conservación exige v₂ = v₁(1 - 2a). Con a = 1/3, v₂ = 12/3 = 4 m/s. Si se detuviera a 0 m/s, el aire actuaría como una pared sólida y bloquearía la entrada de nuevo flujo.",
-    },
-    {
-      title: "Área de Barrido y Radio de Pala (R²)",
-      formula: "A = π · R²   ⇒   P = ½ · ρ · (π · R²) · v³",
-      formulaNote: "El área circular y la potencia crecen con el cuadrado de la longitud de pala",
-      variables: [
-        { sym: "R", desc: "Longitud de pala / radio del rotor", val: "De 40 m a 80 m" },
-        { sym: "A", desc: "Área de barrido", val: "A₁ ≈ 5,027 m²  →  A₂ ≈ 20,106 m²" },
-      ],
-      preset: { windSpeed: 10, bladeRadius: 80, inductionFactor: 0.333 },
-      question: "Si en un parque eólico se sustituyen turbinas con palas de R₁ = 40 m por nuevos aerogeneradores de R₂ = 80 m (se duplica la longitud), ¿qué ocurre con el área de barrido y la potencia captada?",
-      options: [
-        "Se duplican (x2)",
-        "Se cuadruplican (x4, porque el área depende de R²)",
-        "Aumentan un 50%",
-        "Se multiplican por 8",
-      ],
-      correct: 1,
-      calculation: "Relación de áreas: A₂ / A₁ = (π · R₂²) / (π · R₁²) = (80 / 40)² = 2² = 4. ¡El área barrida y la potencia eólica se cuadruplican!",
-      explanation:
-        "El área barrida por las palas es circular: A = π · R². Al duplicar el radio R, el área crece cuadráticamente: 2² = 4 veces más energía.",
-    },
-    {
-      title: "Cadena de Rendimientos Comerciales a Red (η_global)",
-      formula: "η_global = Cp,real · η_mec · η_gen · η_trafo",
-      formulaNote: "Eficiencia neta comercial desde el viento libre hasta la inyección a red eléctrica",
-      variables: [
-        { sym: "Cp,real", desc: "Rendimiento aerodinámico real", val: "0.480 (48.0%)" },
-        { sym: "η_mec", desc: "Rendimiento mecánico multiplicadora", val: "0.972 (97.2%)" },
-        { sym: "η_gen", desc: "Rendimiento eléctrico generador", val: "0.965 (96.5%)" },
-        { sym: "η_trafo", desc: "Rendimiento transformador elevador", val: "0.982 (98.2%)" },
-      ],
-      preset: { windSpeed: 11, bladeRadius: 60, inductionFactor: 0.333 },
-      question: "Utilizando la fórmula de la cadena de pérdidas en serie, si Cp = 0.48, η_mec = 0.972, η_gen = 0.965 y η_trafo = 0.982, ¿cuál es el rendimiento global neto vertido a la red?",
-      options: [
-        "≈ 44.2% de la energía del viento incidente",
-        "≈ 59.3% (Límite de Betz)",
-        "≈ 25.0%",
-        "≈ 85.0%",
-      ],
-      correct: 0,
-      calculation: "Cálculo: η_global = 0.48 · 0.972 · 0.965 · 0.982 ≈ 0.4421 = 44.2%. De la energía cinética total del viento que choca con el disco rotor, se inyecta a la red aproximadamente el 44.2%.",
-      explanation:
-        "Una turbina comercial de primer nivel convierte un 44-45% de la energía eólica total en electricidad útil vertida a la red eléctrica.",
-    },
-  ];
-
   const handleLoadPresetToSimulator = (preset: { windSpeed?: number; bladeRadius?: number; inductionFactor?: number; airDensity?: number }) => {
     sounds.playClick();
     if (preset.windSpeed !== undefined) setWindSpeed(preset.windSpeed);
@@ -241,7 +487,7 @@ export const BetzSimulator: React.FC<BetzSimulatorProps> = ({
 
   const handleSelectChallengeAnswer = (ansIdx: number) => {
     setUserChallengeAnswer(ansIdx);
-    const challenge = CHALLENGES[selectedChallengeIdx];
+    const challenge = challenges[selectedChallengeIdx];
     if (ansIdx === challenge.correct) {
       sounds.playCorrect();
       setChallengeFeedback(`¡Correcto! ${challenge.calculation}`);
@@ -249,8 +495,9 @@ export const BetzSimulator: React.FC<BetzSimulatorProps> = ({
       const nextSolved = Array.from(new Set([...solvedChallenges, selectedChallengeIdx]));
       setSolvedChallenges(nextSolved);
       localStorage.setItem("turbine_betz_challenges_completed", JSON.stringify(nextSolved));
+      setChallengeTimeLeft(SECONDS_PER_CHALLENGE);
 
-      if (nextSolved.length === CHALLENGES.length) {
+      if (nextSolved.length === challenges.length) {
         sounds.playFanfare();
         try {
           confetti({
@@ -266,8 +513,10 @@ export const BetzSimulator: React.FC<BetzSimulatorProps> = ({
         if (onBetzChallengesCompleted) onBetzChallengesCompleted(false, nextSolved.length);
       }
     } else {
-      sounds.playWrong();
-      setChallengeFeedback(`Incorrecto. ${challenge.explanation}`);
+      // Incorrect choice: trigger failure and restart from Reto 1 with new randomized data!
+      triggerFailureAndRestart(
+        "¡Cálculo incorrecto! Se han regenerado nuevos datos para que repitas los cálculos desde el Reto 1."
+      );
     }
   };
 
@@ -863,38 +1112,62 @@ export const BetzSimulator: React.FC<BetzSimulatorProps> = ({
                   Retos Conceptuales de Betz & Cálculos en el Simulador
                 </span>
                 <span className="text-[11px] text-slate-400">
-                  {solvedChallenges.length} de {CHALLENGES.length} retos superados
+                  {solvedChallenges.length} de {challenges.length} retos superados
                 </span>
               </div>
-              <div className="flex items-center gap-1.5">
-                {CHALLENGES.map((_, idx) => {
-                  const isSolved = solvedChallenges.includes(idx);
-                  const isCurrent = selectedChallengeIdx === idx;
+              <div className="flex items-center gap-2">
+                {/* COUNTDOWN TIMER BADGE */}
+                <div
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-mono text-xs font-bold shadow-sm transition-all ${
+                    challengeTimeLeft <= 10
+                      ? "bg-rose-950/80 border-rose-500 text-rose-300 animate-pulse"
+                      : "bg-slate-900 border-slate-700 text-sky-300"
+                  }`}
+                  title="Tiempo restante para calcular y responder el reto actual"
+                >
+                  <Clock className={`w-3.5 h-3.5 ${challengeTimeLeft <= 10 ? "text-rose-400 animate-spin" : "text-sky-400"}`} />
+                  <span>{challengeTimeLeft}s</span>
+                </div>
 
-                  return (
-                    <button
-                      key={idx}
-                      onClick={() => {
-                        sounds.playClick();
-                        setSelectedChallengeIdx(idx);
-                        setUserChallengeAnswer(null);
-                        setChallengeFeedback(null);
-                      }}
-                      className={`relative px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
-                        isCurrent
-                          ? "bg-sky-500 text-slate-950 shadow-md font-extrabold"
-                          : isSolved
-                          ? "bg-emerald-950/60 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-900/50"
-                          : "bg-slate-800 text-slate-400 hover:bg-slate-700"
-                      }`}
-                    >
-                      <span>Reto {idx + 1}</span>
-                      {isSolved && <CheckCircle2 className="w-3 h-3 text-emerald-400" />}
-                    </button>
-                  );
-                })}
+                <div className="flex items-center gap-1.5">
+                  {challenges.map((_, idx) => {
+                    const isSolved = solvedChallenges.includes(idx);
+                    const isCurrent = selectedChallengeIdx === idx;
+
+                    return (
+                      <button
+                        key={idx}
+                        onClick={() => {
+                          sounds.playClick();
+                          setSelectedChallengeIdx(idx);
+                          setUserChallengeAnswer(null);
+                          setChallengeFeedback(null);
+                          setChallengeTimeLeft(SECONDS_PER_CHALLENGE);
+                        }}
+                        className={`relative px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
+                          isCurrent
+                            ? "bg-sky-500 text-slate-950 shadow-md font-extrabold"
+                            : isSolved
+                            ? "bg-emerald-950/60 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-900/50"
+                            : "bg-slate-800 text-slate-400 hover:bg-slate-700"
+                        }`}
+                      >
+                        <span>Reto {idx + 1}</span>
+                        {isSolved && <CheckCircle2 className="w-3 h-3 text-emerald-400" />}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
+
+            {/* RESET ON ERROR OR TIMEOUT NOTICE */}
+            {challengeResetNotice && (
+              <div className="bg-rose-950/90 border border-rose-500/70 text-rose-200 text-xs px-3.5 py-2.5 rounded-xl flex items-center gap-2 animate-in fade-in shadow-lg">
+                <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                <span className="font-semibold">{challengeResetNotice}</span>
+              </div>
+            )}
 
             {/* PRESET LOAD NOTIFICATION */}
             {presetLoadedNotice && (
@@ -908,7 +1181,7 @@ export const BetzSimulator: React.FC<BetzSimulatorProps> = ({
             <div className="flex flex-col gap-2">
               <h5 className="font-bold text-sm sm:text-base text-white flex items-center gap-2">
                 <span className="text-sky-400 font-mono">#{selectedChallengeIdx + 1}</span>
-                <span>{CHALLENGES[selectedChallengeIdx].title}</span>
+                <span>{challenges[selectedChallengeIdx].title}</span>
               </h5>
 
               {/* FÓRMULA MATEMÁTICA EN PANTALLA */}
@@ -919,7 +1192,7 @@ export const BetzSimulator: React.FC<BetzSimulatorProps> = ({
                     Fórmula Física Aplicable:
                   </span>
                   <button
-                    onClick={() => handleLoadPresetToSimulator(CHALLENGES[selectedChallengeIdx].preset)}
+                    onClick={() => handleLoadPresetToSimulator(challenges[selectedChallengeIdx].preset)}
                     className="flex items-center gap-1.5 px-2.5 py-1 bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-400/30 rounded-lg text-[11px] font-bold transition-all shadow-sm"
                   >
                     <Sliders className="w-3.5 h-3.5" />
@@ -929,17 +1202,17 @@ export const BetzSimulator: React.FC<BetzSimulatorProps> = ({
 
                 <div className="py-2 px-3 bg-slate-950/80 rounded-lg border border-slate-800 text-center">
                   <span className="text-base sm:text-lg font-mono font-black text-cyan-300 tracking-wider">
-                    {CHALLENGES[selectedChallengeIdx].formula}
+                    {challenges[selectedChallengeIdx].formula}
                   </span>
                 </div>
 
                 <p className="text-[11px] text-slate-400 font-mono italic">
-                  {CHALLENGES[selectedChallengeIdx].formulaNote}
+                  {challenges[selectedChallengeIdx].formulaNote}
                 </p>
 
                 {/* Variables legend */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 pt-1 border-t border-slate-800/60">
-                  {CHALLENGES[selectedChallengeIdx].variables.map((v, vIdx) => (
+                  {challenges[selectedChallengeIdx].variables.map((v, vIdx) => (
                     <div key={vIdx} className="bg-slate-950/60 px-2 py-1 rounded text-[10px] text-slate-300 flex items-center justify-between">
                       <span className="font-mono text-cyan-400 font-bold">{v.sym}:</span>
                       <span className="text-slate-400 truncate ml-1">{v.desc}</span>
@@ -951,15 +1224,15 @@ export const BetzSimulator: React.FC<BetzSimulatorProps> = ({
 
               {/* QUESTION TEXT */}
               <p className="text-xs sm:text-sm text-slate-200 mt-1 font-medium leading-relaxed">
-                {CHALLENGES[selectedChallengeIdx].question}
+                {challenges[selectedChallengeIdx].question}
               </p>
             </div>
 
             {/* OPTIONS */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {CHALLENGES[selectedChallengeIdx].options.map((opt, optIdx) => {
+              {challenges[selectedChallengeIdx].options.map((opt, optIdx) => {
                 const isChosen = userChallengeAnswer === optIdx;
-                const isCorrect = optIdx === CHALLENGES[selectedChallengeIdx].correct;
+                const isCorrect = optIdx === challenges[selectedChallengeIdx].correct;
 
                 return (
                   <button
@@ -985,13 +1258,13 @@ export const BetzSimulator: React.FC<BetzSimulatorProps> = ({
             {challengeFeedback && (
               <div
                 className={`text-xs p-3.5 rounded-xl border animate-in fade-in flex flex-col gap-1.5 ${
-                  userChallengeAnswer === CHALLENGES[selectedChallengeIdx].correct
+                  userChallengeAnswer === challenges[selectedChallengeIdx].correct
                     ? "bg-emerald-950/60 border-emerald-500/50 text-emerald-200"
                     : "bg-rose-950/60 border-rose-500/50 text-rose-200"
                 }`}
               >
                 <div className="flex items-center gap-1.5 font-bold">
-                  {userChallengeAnswer === CHALLENGES[selectedChallengeIdx].correct ? (
+                  {userChallengeAnswer === challenges[selectedChallengeIdx].correct ? (
                     <>
                       <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                       <span>¡Respuesta Correcta! Cálculo Verificado</span>

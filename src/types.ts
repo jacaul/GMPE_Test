@@ -59,6 +59,7 @@ export interface ScoreEntry {
   score: number;
   levelReached: number;
   totalTime: number; // in seconds
+  failsCount: number; // total number of mistakes/fails
   accuracy: number; // percentage
   answersCorrect: number;
   answersTotal: number;
